@@ -24,7 +24,14 @@ class InstallResultReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_SUCCESS -> AppModel.reportInstall("Updated")
             else -> {
                 val reason = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown reason"
-                AppModel.reportInstall("Install failed: $reason")
+                val hint = when {
+                    reason.contains("VERIFICATION", ignoreCase = true) ->
+                        "Blocked by Google Play Protect. Open More details and choose Install anyway, or allow the app in Play Store > Play Protect settings."
+                    reason.contains("INCOMPATIBLE", ignoreCase = true) || reason.contains("signature", ignoreCase = true) ->
+                        "The new version is signed with a different key. Uninstall the app once and install the new version. See the signing key section in the README."
+                    else -> reason
+                }
+                AppModel.reportInstall("Install failed: $hint")
             }
         }
     }
