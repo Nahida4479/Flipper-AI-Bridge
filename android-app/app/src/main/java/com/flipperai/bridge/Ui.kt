@@ -130,7 +130,10 @@ fun Appear(key: String, delayMs: Int = 0, content: @Composable () -> Unit) {
 fun ToastBanner(flow: kotlinx.coroutines.flow.StateFlow<String?>, modifier: Modifier = Modifier) {
     val message by flow.collectAsState()
     var shown by remember { mutableStateOf("") }
-    LaunchedEffect(message) { if (message != null) shown = message }
+    LaunchedEffect(message) {
+        val current = message
+        if (current != null) shown = current
+    }
     Box(modifier = modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         AnimatedVisibility(
             visible = message != null,
