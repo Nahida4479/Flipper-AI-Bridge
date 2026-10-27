@@ -1,24 +1,30 @@
 # Flipper AI Bridge
 
-Zadawaj pytania AI z Flippera Zero. Flipper nie ma Wi-Fi, więc pośrednikiem jest telefon z Androidem: Flipper wysyła pytanie przez Bluetooth Low Energy lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
+Zadawaj pytania AI z Flippera Zero. Flipper wysyła zapytania do pośrednika (twojego telefonu z Androidem). Flipper wysyła pytanie przez Bluetooth Low Energy lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
 
-English version: [README.md](README.md)
+<img src="./public/flipper-ai-banner.gif">
+
+<div align="center">
+<img src="https://img.shields.io/badge/FlipperAI-blue">
+<a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+<a href="https://github.com/Nahida4479/Flipper-AI-Bridge/releases"><img src="https://img.shields.io/github/v/release/Nahida4479/Flipper-AI-Bridge?include_prereleases" alt="Latest release"></a>
+</div>
 
 ## Funkcje
 
 - Czat na ekranie Flippera: klawiatura ekranowa, pasek z czatem nad polem wpisywania, przewijanie.
 - Bluetooth Low Energy i USB. Gdy Flipper jest podłączony do telefonu kablem USB, automatycznie używane jest USB, nawet jeśli Bluetooth też jest włączony.
-- Pozycje Chat i New chat w menu są wyszarzone, dopóki Flipper nie wykryje aplikacji w telefonie. Na dole menu widać `Phone app not detected`.
-- Podpowiedzi słów i zdań po polsku i angielsku (angielski, polski albo oba). Uczą się z tego, co piszesz. Przytrzymaj OK, aby przyjąć podpowiedź.
-- Dwie zapisane rozmowy. Gdy istnieją obie, `Chat` pyta, którą otworzyć, i pokazuje ostatnie pytanie z każdej. Nowy czat przy zajętych obu miejscach zastępuje tę, której najdawniej używałeś. Każdy czat ma limit 500 KB.
-- Aplikacja na Androida: klucz API zaszyfrowany (Android Keystore, AES-256-GCM) i pokazany jako kropki, wybór modelu (Sonnet 5.5, Haiku 5.5, Opus 5.5), wybór effort (low, medium, high), działa przy wygaszonym ekranie bez wake locków i odpytywania.
-- Aktualizacje aplikacji w telefonie z weryfikacją SHA-256 oraz instalacja jednym przyciskiem `Install on Flipper` / `Update on Flipper` dla aplikacji na Flippera. Czaty, ustawienia i klucz API zostają.
+- Podpowiedzi słów i zdań po polsku i angielsku (angielski, polski albo oba). Uczą się z tego, co piszesz. Przytrzymaj **OK**, aby przyjąć podpowiedź.
+- Dwie zapisane rozmowy. Nowy czat przy zajętych obu miejscach zastępuje najstarszy. Każdy czat ma limit 500 KB.
+- Aplikacja na Androida: klucz API zaszyfrowany (Android Keystore, AES-256-GCM), wybór modelu (Sonnet 5.5, Haiku 5.5, Opus 5.5), wybór effort (low, medium, high), działa przy wygaszonym ekranie.
+- Aktualizacje aplikacji w telefonie z weryfikacją SHA-256 oraz instalacja jednym przyciskiem dla aplikacji zainstalowanej na Flipperze.
+- English version: [README.md](README.md)
 
 ## Jak to działa
 
 ```mermaid
 flowchart LR
-    F["Flipper AI Bridge (Flipper)"] <-->|"USB (priorytet)<br/>albo Bluetooth Low Energy"| P["Android backend system"]
+    F["Flipper Zero<br/>aplikacja AI Bridge"] <-->|"USB (priorytet)<br/>albo BLE"| P["Telefon z Androidem<br/>usługa w tle"]
     P -->|HTTPS| A[("API Anthropic")]
     A -->|odpowiedź| P
 ```
@@ -27,46 +33,44 @@ flowchart LR
 
 | Ścieżka | Zawartość |
 | --- | --- |
-| `flipper-app/` | Aplikacja na Flippera Zero (C, `ufbt`) |
-| `android-app/` | Aplikacja na Androida (Kotlin, Jetpack Compose) |
+| `flipper-app/` | Aplikacja na Flippera Zero |
+| `android-app/` | Aplikacja na Androida |
 | `release/` | Gotowy `ai_bridge.fap` |
-| `tools/` | Generator słowników i skrypt klucza podpisu |
-| `.github/workflows/` | CI budujące APK i `.fap` oraz publikujące wydania |
+| `tools/` | Generator słów pomocniczych i skrypt klucza podpisu |
+| `.github/workflows/` | Action budujące `APK` i `.fap` oraz publikujące wydania |
 
 Gałęzie: `main` to wersja stabilna, `beta` dostaje nowe zmiany do testów.
 
 ## Instalacja
 
-1. Pobierz `flipper-ai-bridge.apk` ze strony [Releases](../../releases) i zainstaluj w telefonie. Zezwól na instalację z tego źródła, jeśli system zapyta.
+1. Pobierz `flipper-ai-bridge.apk` ze strony [Releases](https://github.com/Nahida4479/Flipper-AI-Bridge/releases) i zainstaluj na telefonie. 
 2. Otwórz aplikację w telefonie, nadaj uprawnienia, wpisz klucz API Anthropic i naciśnij `Start`.
 3. Wgraj aplikację na Flippera na jeden z dwóch sposobów:
-   - w aplikacji w telefonie naciśnij `Install on Flipper` (Flipper połączony przez USB lub Bluetooth, AI Bridge nie uruchomiony na Flipperze), albo
-   - skopiuj `ai_bridge.fap` do `SD:/apps/<folder>/` przez qFlipper lub lab.flipper.net. Słowniki są wbudowane w `.fap` i Flipper rozpakowuje je przy pierwszym starcie.
-4. Bluetooth: w telefonie naciśnij `Scan for Flipper` i wybierz Flippera (lista zawiera też sparowane urządzenia). Flipper już połączony z telefonem się nie reklamuje, więc widać go tylko na liście sparowanych. Zaakceptuj PIN parowania.
-5. USB: podłącz Flippera do telefonu (OTG). Zaakceptuj uprawnienie USB jednorazowo.
+   - w aplikacji w telefonie naciśnij `Install on Flipper` (Flipper połączony przez USB lub Bluetooth), albo
+   - skopiuj `ai_bridge.fap` do `SD:/apps/<folder>/` przez qFlipper lub lab.flipper.net. Mechanizm słów pomocniczych jest wbudowany w `.fap` i Flipper rozpakowuje je przy pierwszym starcie.
+4. **Bluetooth:** na telefonie naciśnij `Scan for Flipper` i wybierz Flippera z listy.
+5. **USB:** podłącz Flippera do telefonu. Zaakceptuj jednorazowe uprawnienie USB.
 6. Na Flipperze uruchom aplikację i wybierz `Chat`.
 
 ### Sterowanie na Flipperze
 
 | Przycisk | Akcja |
 | --- | --- |
-| Krzyżak | Poruszanie po klawiaturze. W górę z górnego rzędu wybiera pasek czatu, potem góra/dół przewija |
+| Krzyżak | Poruszanie po klawiaturze. |
 | OK | Wciśnięcie klawisza |
 | Przytrzymaj OK | Przyjęcie podpowiedzi |
-| OK na pasku czatu | Pokazuje cały czat na pełnym ekranie (góra/dół przewija). OK albo Back wraca do klawiatury |
 | Back | Kasowanie znaku. Przy pustym polu: powrót do menu |
 | Przytrzymaj Back | Powrót do menu |
 
-Dolny rząd klawiatury: warstwa (`abc`, `ABC` na jedną literę, `PL1` polskie litery, cyfry i symbole), `Del`, `Space`, `Tab` (przyjmij podpowiedź), `Send`. Czcionka Flippera nie ma polskich liter, więc na ekranie są bez ogonków, ale do AI trafia tekst z nimi.
-
 ### Język
 
-Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interfejsu, więc język podpowiedzi ustawia się w aplikacji (`Settings -> Hints language`). Domyślnie angielski. Interfejs aplikacji jest po angielsku. AI odpowiada po polsku lub angielsku (w języku pytania), a przy innych językach po angielsku.
+Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interfejsu, więc ****język podpowiedzi** ustawia się w aplikacji (`Settings -> Hints language`). **Domyślnie angielski**. Interfejs aplikacji jest po angielsku. AI odpowiada po polsku lub angielsku (w języku pytania), a przy innych językach po angielsku.
 
 ## Aktualizacje i sumy kontrolne
 
-Aktualizuj zawsze w tej kolejności: najpierw aplikację w telefonie, potem aplikację na Flipperze. Gdy aktualizacja jest dostępna w obu, najpierw trzeba zaktualizować telefon. Przycisk `Update on Flipper` jest nieaktywny, dopóki aplikacja w telefonie nie jest aktualna.
+Aplikacja w telefonie pyta GitHuba o najnowsze wydanie przy otwarciu (i po `Check for updates`). Wersje beta są uwzględniane tylko po włączeniu tej opcji.
 
+<<<<<<< HEAD
 Aplikacja w telefonie pyta GitHuba o najnowsze wydanie przy otwarciu (i po `Check for updates`). Nowa wersja jest proponowana tylko wtedy, gdy ma wyższy numer niż zainstalowana. Wersje beta są uwzględniane tylko po włączeniu opcji.
 
 Przed instalacją plik jest pobierany, a jego SHA-256 porównywane z digestem podanym przez GitHub dla tego pliku oraz z plikiem `SHA256SUMS` z wydania. Jeśli którejś sumy brakuje, są niezgodne albo hash się nie zgadza, nic nie jest instalowane. Wgranie aplikacji na Flippera jest dodatkowo sprawdzane sumą MD5 na Flipperze.
@@ -102,15 +106,15 @@ Oba łącza przesyłają jedną wiadomość UTF-8 na linię (`\n` w tekście zap
 | Telefon do Flippera | `X:<tekst>` | Błąd |
 
 Instalacja aplikacji na Flippera używa własnego protokołu RPC Flippera (protobuf, usługa storage), a nie tego protokołu.
+=======
+Przed instalacją plik jest pobierany, a jego SHA-256 jest porównywane z plikiem `SHA256SUMS` z releases. Jeśli którejś sumy brakuje, są niezgodne albo hash się nie zgadza, nic nie jest instalowane. Wgranie aplikacji na Flippera jest dodatkowo sprawdzane sumą MD5 na Flipperze.
+>>>>>>> d3b46e4 (Update README.md)
 
 ## Bezpieczeństwo
 
-- Klucz API jest zapisany zaszyfrowany kluczem Android Keystore, którego nie da się wyeksportować, pokazywany tylko jako kropki i wysyłany wyłącznie do `https://api.anthropic.com`. Kopie zapasowe są wyłączone.
+- Klucz API jest zapisany __zaszyfrowany kluczem Android Keystore__, którego nie da się wyeksportować, pokazywany tylko jako kropki i wysyłany wyłącznie do `https://api.anthropic.com`.
 - Historia czatu na Flipperze leży na karcie SD jako zwykły tekst.
 - Łącze Bluetooth używa parowania Flippera z kodem PIN.
 
-## Uwagi
-
-- Aplikacje powstały bez dostępu do sprzętu, więc przetestuj je na swoich urządzeniach i zgłoś problemy.
-- Układ interfejsu Flippera (128x64 px) może wymagać drobnych poprawek po pierwszym teście.
-- Flipper AI Bridge to niezależny projekt społecznościowy, niepowiązany z Anthropic ani przez Anthropic niepopierany. „Claude” jest znakiem towarowym Anthropic i jest tu użyty wyłącznie do nazwania modeli udostępnianych przez API Anthropic.
+## Licencja 
+Licencja [MIT](./LICENSE)
