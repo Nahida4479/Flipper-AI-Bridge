@@ -51,6 +51,18 @@ class BleTransport(
         connect()
     }
 
+    fun reconnect(timeoutMs: Long): Boolean {
+        val target = address
+        if (target.isEmpty()) return false
+        start(target)
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (ready) return true
+            Thread.sleep(200)
+        }
+        return false
+    }
+
     fun stop() {
         active = false
         ready = false

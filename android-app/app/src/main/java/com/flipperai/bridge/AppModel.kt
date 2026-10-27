@@ -146,6 +146,12 @@ object AppModel {
                 val data = Releases.fetchAndVerify(rel, Releases.FAP_NAME) { p ->
                     state.update { it.copy(fapProgress = p / 4) }
                 }
+                if (transport is BleTransport) {
+                    state.update { it.copy(fapMessage = "Reconnecting Bluetooth") }
+                    if (!transport.reconnect(25000)) {
+                        throw RpcException("Bluetooth did not reconnect. Check that the Flipper is on and not running AI Bridge")
+                    }
+                }
                 state.update { it.copy(fapMessage = "Checksum OK, talking to the Flipper") }
                 val client = FlipperRpc(transport)
                 rpc = client

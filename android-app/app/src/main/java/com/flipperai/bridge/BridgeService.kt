@@ -140,7 +140,7 @@ class BridgeService : Service() {
 
     private fun onLine(source: Transport, line: String) {
         when {
-            line == "@ready" || line == "P" -> source.send("H")
+            line == "P" -> source.send("H")
             line == "N" -> synchronized(history) { history.clear() }
             line.startsWith("U:") -> synchronized(history) {
                 history.add(ChatTurn("user", Protocol.unescape(line.substring(2))))
