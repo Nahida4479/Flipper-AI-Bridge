@@ -70,45 +70,7 @@ Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interf
 
 Aplikacja w telefonie pyta GitHuba o najnowsze wydanie przy otwarciu (i po `Check for updates`). Wersje beta są uwzględniane tylko po włączeniu tej opcji.
 
-<<<<<<< HEAD
-Aplikacja w telefonie pyta GitHuba o najnowsze wydanie przy otwarciu (i po `Check for updates`). Nowa wersja jest proponowana tylko wtedy, gdy ma wyższy numer niż zainstalowana. Wersje beta są uwzględniane tylko po włączeniu opcji.
 
-Przed instalacją plik jest pobierany, a jego SHA-256 porównywane z digestem podanym przez GitHub dla tego pliku oraz z plikiem `SHA256SUMS` z wydania. Jeśli którejś sumy brakuje, są niezgodne albo hash się nie zgadza, nic nie jest instalowane. Wgranie aplikacji na Flippera jest dodatkowo sprawdzane sumą MD5 na Flipperze.
-
-To chroni przed uszkodzonym lub podmienionym plikiem. Nie chroni przed kimś, kto kontroluje to repozytorium, więc dbaj o repozytorium i jego sekrety. Dodatkowo Android odrzuci APK podpisany innym kluczem niż zainstalowana aplikacja.
-
-### Klucz podpisu (potrzebny do aktualizacji w aplikacji)
-
-Android zainstaluje aktualizację tylko, gdy jest podpisana tym samym kluczem co zainstalowana aplikacja. Workflow wydań potrzebuje więc stałego klucza:
-
-1. Uruchom raz `tools/make_keystore.sh` (wymaga `keytool` z dowolnego JDK).
-2. Dodaj do repozytorium cztery sekrety, które wypisze (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`).
-3. Przechowuj plik `.jks` w bezpiecznym miejscu. Jego utrata oznacza, że użytkownicy muszą raz odinstalować aplikację, żeby ją zaktualizować.
-
-Bez sekretów APK jest podpisany kluczem tymczasowym i da się go tylko zainstalować od nowa.
-
-## Protokół
-
-Oba łącza przesyłają jedną wiadomość UTF-8 na linię (`\n` w tekście zapisywane jako `\\n`):
-
-| Kierunek | Linia | Znaczenie |
-| --- | --- | --- |
-| Telefon do Flippera | `H` | Hello, aplikacja w telefonie jest |
-| Flipper do telefonu | `P` | Ping, odpowiedź to `H` |
-| Flipper do telefonu | `N` | Nowa rozmowa |
-| Flipper do telefonu | `U:<tekst>` / `B:<tekst>` | Wcześniejsza wiadomość użytkownika / AI (odtworzenie kontekstu po wznowieniu czatu) |
-| Flipper do telefonu | `Q:<lang>:<tekst>` | Pytanie (`lang` to `en`, `pl` albo `both`) |
-| Telefon do Flippera | `S:<tekst>` | Status |
-| Telefon do Flippera | `A:<kawałek>` | Część odpowiedzi |
-| Telefon do Flippera | `R` | Zacznij odpowiedź od nowa (wysyłane, gdy odpowiedź jest dostarczana drugi raz po zerwaniu łącza) |
-| Telefon do Flippera | `E` | Koniec odpowiedzi |
-| Flipper do telefonu | `K` | Odpowiedź odebrana, telefon może o niej zapomnieć |
-| Telefon do Flippera | `X:<tekst>` | Błąd |
-
-Instalacja aplikacji na Flippera używa własnego protokołu RPC Flippera (protobuf, usługa storage), a nie tego protokołu.
-=======
-Przed instalacją plik jest pobierany, a jego SHA-256 jest porównywane z plikiem `SHA256SUMS` z releases. Jeśli którejś sumy brakuje, są niezgodne albo hash się nie zgadza, nic nie jest instalowane. Wgranie aplikacji na Flippera jest dodatkowo sprawdzane sumą MD5 na Flipperze.
->>>>>>> d3b46e4 (Update README.md)
 
 ## Bezpieczeństwo
 
@@ -118,3 +80,4 @@ Przed instalacją plik jest pobierany, a jego SHA-256 jest porównywane z plikie
 
 ## Licencja 
 Licencja [MIT](./LICENSE)
+
