@@ -8,6 +8,10 @@ on:
       tag:
         description: "Release tag, e.g. v1.0.0"
         required: true
+      stable:
+        description: "Publish as a stable release (not a beta), even when run from the beta branch"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -92,7 +96,8 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: ${{ github.event.inputs.tag || github.ref_name }}
-          prerelease: ${{ github.ref_name == 'beta' }}
+          prerelease: ${{ github.ref_name == 'beta' && github.event.inputs.stable != 'true' }}
+          make_latest: ${{ github.event.inputs.stable == 'true' }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: assets/*
