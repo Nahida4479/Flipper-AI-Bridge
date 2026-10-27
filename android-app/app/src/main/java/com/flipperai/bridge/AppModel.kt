@@ -153,6 +153,10 @@ object AppModel {
 
     fun installFap(context: Context) {
         if (state.value.fapBusy) return
+        if (state.value.appUpdate) {
+            showToast("Update the phone app first")
+            return
+        }
         val store = SecureStore(context)
         state.update { it.copy(fapBusy = true, fapProgress = 0, fapMessage = "Preparing") }
         scope.launch {

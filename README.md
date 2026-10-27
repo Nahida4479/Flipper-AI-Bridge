@@ -64,6 +64,8 @@ The official Flipper firmware has no interface language setting that apps can re
 
 ## Updates and checksums
 
+Always update in this order: first the phone app, then the Flipper app. When both have an update, the phone app has to be updated first. The `Update on Flipper` button stays disabled until the phone app is up to date.
+
 The phone app asks GitHub for the newest release when it opens (and on `Check for updates`). A new version is only offered when its version number is higher than the installed one. Beta releases are included only if you switch that on.
 
 Before anything is installed, the file is downloaded and its SHA-256 is compared with the digest GitHub reports for that asset and with the `SHA256SUMS` file of the release. If either is missing, or they disagree, or the hash does not match, nothing is installed. The Flipper app upload is also verified with an MD5 check on the Flipper.

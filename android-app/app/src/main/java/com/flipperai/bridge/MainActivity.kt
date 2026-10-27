@@ -331,7 +331,7 @@ class MainActivity : ComponentActivity() {
                                 val needsInstall = upd.fapState == FapState.UpdateAvailable || upd.fapState == FapState.NotInstalled
                                 PressButton(
                                     outlined = !needsInstall,
-                                    enabled = ui.running && !upd.fapBusy,
+                                    enabled = ui.running && !upd.fapBusy && !upd.appUpdate,
                                     onClick = { confirmFap = true }
                                 ) {
                                     Text(
@@ -342,7 +342,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
-                                if (!ui.running) {
+                                if (upd.appUpdate) {
+                                    Text(
+                                        "Update the phone app first (below), then update the Flipper app.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else if (!ui.running) {
                                     Text("Start the service and connect the Flipper to install.", style = MaterialTheme.typography.bodySmall)
                                 }
 

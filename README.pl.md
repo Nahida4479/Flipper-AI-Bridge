@@ -64,6 +64,8 @@ Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interf
 
 ## Aktualizacje i sumy kontrolne
 
+Aktualizuj zawsze w tej kolejności: najpierw aplikację w telefonie, potem aplikację na Flipperze. Gdy aktualizacja jest dostępna w obu, najpierw trzeba zaktualizować telefon. Przycisk `Update on Flipper` jest nieaktywny, dopóki aplikacja w telefonie nie jest aktualna.
+
 Aplikacja w telefonie pyta GitHuba o najnowsze wydanie przy otwarciu (i po `Check for updates`). Nowa wersja jest proponowana tylko wtedy, gdy ma wyższy numer niż zainstalowana. Wersje beta są uwzględniane tylko po włączeniu opcji.
 
 Przed instalacją plik jest pobierany, a jego SHA-256 porównywane z digestem podanym przez GitHub dla tego pliku oraz z plikiem `SHA256SUMS` z wydania. Jeśli którejś sumy brakuje, są niezgodne albo hash się nie zgadza, nic nie jest instalowane. Wgranie aplikacji na Flippera jest dodatkowo sprawdzane sumą MD5 na Flipperze.
