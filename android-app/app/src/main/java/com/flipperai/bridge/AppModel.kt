@@ -33,6 +33,7 @@ object AppModel {
     @Volatile private var release: ReleaseInfo? = null
     const val INSTALL_ACTION = "com.flipperai.bridge.INSTALL_RESULT"
     private const val FAP_DIR = "/ext/apps/Tools"
+    private const val LEGACY_FAP_NAME = "claude_bridge.fap"
 
     fun reportInstall(message: String) = state.update { it.copy(appBusy = false, appProgress = -1, appMessage = message) }
 
@@ -151,7 +152,8 @@ object AppModel {
                     throw RpcException("Flipper does not answer. Close AI Bridge on the Flipper and try again")
                 }
                 val existing = findExisting(client)
-                val target = existing ?: "$FAP_DIR/${Releases.FAP_NAME}"
+                val dir = existing?.dir ?: FAP_DIR
+                val target = "$dir/${Releases.FAP_NAME}"
                 if (existing == null) {
                     state.update { it.copy(fapMessage = "Creating Tools folder") }
                     client.mkdir("/ext/apps")
@@ -173,7 +175,8 @@ object AppModel {
                     }
                     throw RpcException("Upload verification failed, nothing was changed")
                 }
-                if (existing != null) client.delete(existing)
+                if (existing?.current == true) client.delete(target)
+                if (existing?.legacy == true) client.delete("$dir/$LEGACY_FAP_NAME")
                 client.rename(temp, target)
                 store.flipperFapSha = Releases.sha256(data)
                 val where = target.removePrefix("/ext/")
@@ -194,13 +197,20 @@ object AppModel {
         }
     }
 
-    private fun findExisting(rpc: FlipperRpc): String? {
+    private class Existing(val dir: String, val current: Boolean, val legacy: Boolean)
+
+    private fun findExisting(rpc: FlipperRpc): Existing? {
         val root = try {
             rpc.list("/ext/apps")
         } catch (e: RpcException) {
             return null
         }
-        if (root.any { it.first == Releases.FAP_NAME && !it.second }) return "/ext/apps/${Releases.FAP_NAME}"
+        fun scan(dir: String, entries: List<Pair<String, Boolean>>): Existing? {
+            val current = entries.any { it.first == Releases.FAP_NAME && !it.second }
+            val legacy = entries.any { it.first == LEGACY_FAP_NAME && !it.second }
+            return if (current || legacy) Existing(dir, current, legacy) else null
+        }
+        scan("/ext/apps", root)?.let { return it }
         for ((name, isDir) in root) {
             if (!isDir) continue
             val inner = try {
@@ -208,7 +218,7 @@ object AppModel {
             } catch (e: RpcException) {
                 continue
             }
-            if (inner.any { it.first == Releases.FAP_NAME && !it.second }) return "/ext/apps/$name/${Releases.FAP_NAME}"
+            scan("/ext/apps/$name", inner)?.let { return it }
         }
         return null
     }
