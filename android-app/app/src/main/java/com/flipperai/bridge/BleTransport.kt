@@ -86,7 +86,7 @@ class BleTransport(
         gatt = device.connectGatt(context, true, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(code: Int) {
         gatt?.close()
         gatt = null
         rx = null
@@ -95,7 +95,7 @@ class BleTransport(
         writing = false
         assembler.reset()
         if (active) {
-            onStatus("Connecting")
+            onStatus(if (code == 0) "Connecting" else "Retrying (error $code)")
             handler.removeCallbacks(reconnect)
             handler.postDelayed(reconnect, RECONNECT_MS)
         }
@@ -107,7 +107,7 @@ class BleTransport(
                 onStatus("Pairing / setup")
                 g.requestMtu(247)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                handler.post { scheduleReconnect() }
+                handler.post { scheduleReconnect(status) }
             }
         }
 

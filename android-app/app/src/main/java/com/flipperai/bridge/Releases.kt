@@ -35,7 +35,9 @@ object Releases {
     fun latest(includeBeta: Boolean): ReleaseInfo? {
         val conn = open("https://api.github.com/repos/$REPO/releases?per_page=15")
         try {
-            if (conn.responseCode !in 200..299) throw ChecksumException("GitHub answered ${conn.responseCode}")
+            val code = conn.responseCode
+            if (code == 404) throw ChecksumException("Repository not found or private (GitHub 404)")
+            if (code !in 200..299) throw ChecksumException("GitHub answered $code")
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             val list = JSONArray(body)
             var best: ReleaseInfo? = null

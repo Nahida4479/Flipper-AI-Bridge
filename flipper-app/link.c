@@ -168,7 +168,6 @@ void link_start(Link* link) {
     link->bt = furi_record_open(RECORD_BT);
     bt_disconnect(link->bt);
     furi_delay_ms(200);
-    bt_keys_storage_set_storage_path(link->bt, BT_KEYS_PATH);
     link->profile = bt_profile_start(link->bt, ble_profile_serial, NULL);
     if(link->profile) {
         ble_profile_serial_set_event_callback(link->profile, BLE_RX_BUFFER, ble_event, link);
@@ -212,7 +211,6 @@ static void link_teardown(Link* link) {
     bt_set_status_changed_callback(link->bt, NULL, NULL);
     bt_disconnect(link->bt);
     furi_delay_ms(200);
-    bt_keys_storage_set_default_path(link->bt);
     bt_profile_restore_default(link->bt);
     furi_record_close(RECORD_BT);
     link->started = false;
