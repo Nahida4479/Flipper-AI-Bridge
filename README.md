@@ -10,7 +10,7 @@ Ask AI questions from the Flipper Zero. The Flipper sends queries to an intermed
 <a href="https://github.com/Nahida4479/Flipper-AI-Bridge/releases"><img src="https://img.shields.io/github/v/release/Nahida4479/Flipper-AI-Bridge?include_prereleases" alt="Latest release"></a>
 </div>
 
-English version: [README.md](README.md)
+Polish version: [README.md](README.pl.md)
 
 ## Features
 
