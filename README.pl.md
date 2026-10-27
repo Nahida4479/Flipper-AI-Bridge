@@ -96,7 +96,9 @@ Oba łącza przesyłają jedną wiadomość UTF-8 na linię (`\n` w tekście zap
 | Flipper do telefonu | `Q:<lang>:<tekst>` | Pytanie (`lang` to `en`, `pl` albo `both`) |
 | Telefon do Flippera | `S:<tekst>` | Status |
 | Telefon do Flippera | `A:<kawałek>` | Część odpowiedzi |
+| Telefon do Flippera | `R` | Zacznij odpowiedź od nowa (wysyłane, gdy odpowiedź jest dostarczana drugi raz po zerwaniu łącza) |
 | Telefon do Flippera | `E` | Koniec odpowiedzi |
+| Flipper do telefonu | `K` | Odpowiedź odebrana, telefon może o niej zapomnieć |
 | Telefon do Flippera | `X:<tekst>` | Błąd |
 
 Instalacja aplikacji na Flippera używa własnego protokołu RPC Flippera (protobuf, usługa storage), a nie tego protokołu.

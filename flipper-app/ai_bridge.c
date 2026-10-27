@@ -19,7 +19,7 @@
 
 #define INPUT_MAX   160
 #define SUGGEST_MAX 64
-#define BUSY_TIMEOUT_TICKS 240
+#define BUSY_TIMEOUT_TICKS 360
 
 typedef enum {
     ViewMenu,
@@ -86,6 +86,7 @@ typedef struct {
     bool synced;
     bool busy;
     uint16_t busy_ticks;
+    bool link_lost;
 } App;
 
 static const uint16_t KEYS[3][3][10] = {
@@ -518,6 +519,7 @@ static void handle_send(App* app) {
 
     app->busy = true;
     app->busy_ticks = 0;
+    app->link_lost = false;
     furi_string_reset(app->answer);
     suggest_learn(app->suggest, text);
     suggest_save(app->suggest);
@@ -568,8 +570,19 @@ static void handle_line(App* app, const char* line) {
                 m->notice[0] = 0;
             },
             true);
+    } else if(line[0] == 'R' && line[1] == 0) {
+        if(!app->busy) return;
+        furi_string_reset(app->answer);
+        with_view_model(
+            app->chat_view,
+            ChatModel * m,
+            { chatlog_set_pending(m->log, ""); },
+            true);
     } else if(line[0] == 'E') {
-        if(app->busy) finish_answer(app, true);
+        if(app->busy) {
+            finish_answer(app, true);
+            link_send_line(app->link, "K\n");
+        }
     } else if(line[0] == 'X' && line[1] == ':') {
         if(!app->busy) return;
         furi_string_reset(app->answer);
@@ -853,6 +866,14 @@ static bool custom_event_cb(void* context, uint32_t event) {
 static void tick_cb(void* context) {
     App* app = context;
     if(app->busy) {
+        bool lost = link_kind(app->link) == LinkKindNone;
+        if(lost && !app->link_lost) {
+            app->link_lost = true;
+            set_notice(app, "Reconnecting...");
+        } else if(!lost && app->link_lost) {
+            app->link_lost = false;
+            set_notice(app, "Thinking...");
+        }
         app->busy_ticks++;
         if(app->busy_ticks > BUSY_TIMEOUT_TICKS) {
             furi_string_reset(app->answer);

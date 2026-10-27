@@ -27,6 +27,9 @@ class BridgeService : Service() {
     private var usb: UsbTransport? = null
     private var job: Job? = null
     private val history = ArrayList<ChatTurn>()
+    private var pending: List<String>? = null
+    private var pendingSince = 0L
+    private var lastResend = 0L
     private var bleStatus = "Off"
     private var usbStatus = "Off"
 
@@ -146,8 +149,15 @@ class BridgeService : Service() {
 
     private fun onLine(source: Transport, line: String) {
         when {
-            line == "P" || line == "@app" -> source.send("H")
-            line == "N" -> synchronized(history) { history.clear() }
+            line == "P" || line == "@app" -> {
+                source.send("H")
+                resendPending(source)
+            }
+            line == "K" -> pending = null
+            line == "N" -> {
+                pending = null
+                synchronized(history) { history.clear() }
+            }
             line.startsWith("U:") -> synchronized(history) {
                 history.add(ChatTurn("user", Protocol.unescape(line.substring(2))))
             }
@@ -156,6 +166,20 @@ class BridgeService : Service() {
             }
             line.startsWith("Q:") -> handleQuestion(source, line.substring(2))
         }
+    }
+
+    private fun resendPending(source: Transport) {
+        val lines = pending ?: return
+        val now = System.currentTimeMillis()
+        if (now - pendingSince > RESEND_WINDOW_MS) {
+            pending = null
+            return
+        }
+        if (now - lastResend < 3000) return
+        lastResend = now
+        source.send("R")
+        for (line in lines) source.send(line)
+        source.send("E")
     }
 
     private fun handleQuestion(source: Transport, payload: String) {
@@ -167,6 +191,7 @@ class BridgeService : Service() {
             history.add(ChatTurn("user", question))
             ArrayList(history)
         }
+        pending = null
         job?.cancel()
         job = scope.launch {
             BridgeState.update { it.copy(busy = true) }
@@ -174,7 +199,10 @@ class BridgeService : Service() {
             try {
                 val answer = client.ask(snapshot, lang).ifEmpty { "(empty answer)" }
                 synchronized(history) { history.add(ChatTurn("assistant", answer)) }
-                for (line in Protocol.answerLines(answer)) source.send(line)
+                val lines = Protocol.answerLines(answer)
+                pending = lines
+                pendingSince = System.currentTimeMillis()
+                for (line in lines) source.send(line)
                 source.send("E")
                 BridgeState.addLog(LogEntry(question, answer, false))
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -192,6 +220,7 @@ class BridgeService : Service() {
     companion object {
         private const val CHANNEL_ID = "bridge"
         private const val NOTIFICATION_ID = 7
+        private const val RESEND_WINDOW_MS = 5 * 60 * 1000L
         const val ACTION_STOP = "com.flipperai.bridge.STOP"
         const val ACTION_RESTART_BLE = "com.flipperai.bridge.RESTART_BLE"
         const val ACTION_DISCONNECT_BLE = "com.flipperai.bridge.DISCONNECT_BLE"

@@ -96,7 +96,9 @@ Both links carry one UTF-8 message per line (`\n` inside text is written as `\\n
 | Flipper to phone | `Q:<lang>:<text>` | Question (`lang` is `en`, `pl` or `both`) |
 | Phone to Flipper | `S:<text>` | Status |
 | Phone to Flipper | `A:<chunk>` | Part of the answer |
+| Phone to Flipper | `R` | Start the answer again (sent when the answer is delivered a second time after the link dropped) |
 | Phone to Flipper | `E` | End of the answer |
+| Flipper to phone | `K` | Answer received, the phone can forget it |
 | Phone to Flipper | `X:<text>` | Error |
 
 Installing the Flipper app uses the Flipper's own protobuf RPC (storage service) instead of this protocol.
