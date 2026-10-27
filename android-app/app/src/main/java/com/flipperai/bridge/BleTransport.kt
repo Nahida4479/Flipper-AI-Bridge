@@ -46,14 +46,15 @@ class BleTransport(
     @Volatile private var writeFail = 0
     @Volatile private var lastWriteStatus = -1
 
-    fun debugLine(): String =
-        "rx $rxPackets pkt / $rxBytes B" + (if (lastRx.isNotEmpty()) " (last $lastRx)" else "") +
-            ", writes ok $writeOk fail $writeFail (last status $lastWriteStatus)" +
-            ", Flipper mode " + when (rpcActive) {
-                true -> "RPC (no app)"
-                false -> "AI Bridge app"
-                null -> "unknown"
-            }
+    fun debugLine(): String {
+        val mode = when (rpcActive) {
+            true -> "no app running (system mode)"
+            false -> "AI Bridge app is running"
+            null -> "not checked yet"
+        }
+        val sent = if (writeFail == 0) "$writeOk sent" else "$writeOk sent, $writeFail failed"
+        return "Flipper: $mode. Messages from the Flipper: $rxPackets. To the Flipper: $sent."
+    }
 
     private val reconnect = Runnable { connect() }
     private var linkUp = false

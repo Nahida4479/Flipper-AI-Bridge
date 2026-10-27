@@ -546,7 +546,7 @@ class MainActivity : ComponentActivity() {
                 delay(1000)
             }
         }
-        if (text.isNotEmpty()) Text("Details: $text", style = MaterialTheme.typography.bodySmall)
+        if (text.isNotEmpty()) Text("Connection details: $text", style = MaterialTheme.typography.bodySmall)
     }
 
     @Composable
