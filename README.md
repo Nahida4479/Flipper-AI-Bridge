@@ -10,7 +10,7 @@ Polish version: [README.pl.md](README.pl.md)
 - Bluetooth Low Energy and USB. When the Flipper is plugged into the phone with USB, USB is used automatically, even if Bluetooth is also on.
 - The Chat and New chat menu entries are greyed out until the Flipper detects the phone app. The menu shows `Phone app not detected` at the bottom.
 - Word and phrase hints while typing, in English and Polish (English, Polish or both). They learn from what you write. Hold OK to accept a hint.
-- Two saved chats. Starting a new chat when both slots are used replaces the oldest one. Each chat is limited to 500 KB.
+- Two saved chats. When both exist, `Chat` asks which one to open and shows the last question of each. Starting a new chat when both slots are used replaces the one you used least recently. Each chat is limited to 500 KB.
 - Android app: API key stored encrypted (Android Keystore, AES-256-GCM) and shown as dots, model picker (Sonnet 5.5, Haiku 5.5, Opus 5.5), effort picker (low, medium, high), runs with the screen off without wake locks or polling.
 - In-app updates for the phone app with SHA-256 verification, and one-tap `Install on Flipper` / `Update on Flipper` for the Flipper app. Chats, settings and the API key are kept.
 

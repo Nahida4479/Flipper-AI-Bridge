@@ -10,7 +10,7 @@ English version: [README.md](README.md)
 - Bluetooth Low Energy i USB. Gdy Flipper jest podłączony do telefonu kablem USB, automatycznie używane jest USB, nawet jeśli Bluetooth też jest włączony.
 - Pozycje Chat i New chat w menu są wyszarzone, dopóki Flipper nie wykryje aplikacji w telefonie. Na dole menu widać `Phone app not detected`.
 - Podpowiedzi słów i zdań po polsku i angielsku (angielski, polski albo oba). Uczą się z tego, co piszesz. Przytrzymaj OK, aby przyjąć podpowiedź.
-- Dwie zapisane rozmowy. Nowy czat przy zajętych obu miejscach zastępuje najstarszy. Każdy czat ma limit 500 KB.
+- Dwie zapisane rozmowy. Gdy istnieją obie, `Chat` pyta, którą otworzyć, i pokazuje ostatnie pytanie z każdej. Nowy czat przy zajętych obu miejscach zastępuje tę, której najdawniej używałeś. Każdy czat ma limit 500 KB.
 - Aplikacja na Androida: klucz API zaszyfrowany (Android Keystore, AES-256-GCM) i pokazany jako kropki, wybór modelu (Sonnet 5.5, Haiku 5.5, Opus 5.5), wybór effort (low, medium, high), działa przy wygaszonym ekranie bez wake locków i odpytywania.
 - Aktualizacje aplikacji w telefonie z weryfikacją SHA-256 oraz instalacja jednym przyciskiem `Install on Flipper` / `Update on Flipper` dla aplikacji na Flippera. Czaty, ustawienia i klucz API zostają.
 

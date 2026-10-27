@@ -1,5 +1,6 @@
 #include "store.h"
 #include "paths.h"
+#include "text_fold.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -214,6 +215,82 @@ void store_load_chat(Store* st, ChatLog* log) {
             p = nl + 1;
         }
         furi_string_free(text);
+        free(buf);
+    }
+    storage_file_close(file);
+    storage_file_free(file);
+}
+
+int store_chat_count(Store* st) {
+    return (st->seq[0] > 0 ? 1 : 0) + (st->seq[1] > 0 ? 1 : 0);
+}
+
+bool store_slot_used(Store* st, int slot) {
+    return slot >= 0 && slot <= 1 && st->seq[slot] > 0;
+}
+
+void store_open_slot(Store* st, int slot) {
+    if(!store_slot_used(st, slot)) return;
+    st->active = slot;
+    st->seq[slot] = st->next_seq++;
+    save_meta(st);
+}
+
+void store_last_question(Store* st, int slot, char* out, size_t cap) {
+    snprintf(out, cap, "(empty chat)");
+    if(!store_slot_used(st, slot)) return;
+    char path[64];
+    chat_path(slot, path, sizeof(path));
+    File* file = storage_file_alloc(st->storage);
+    if(storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        uint64_t size = storage_file_size(file);
+        const uint32_t tail = 6144;
+        uint32_t start = size > tail ? (uint32_t)(size - tail) : 0;
+        storage_file_seek(file, start, true);
+        char* buf = malloc(tail + 1);
+        size_t n = storage_file_read(file, buf, tail);
+        buf[n] = 0;
+        char* p = buf;
+        if(start > 0) {
+            char* nl = strchr(p, '\n');
+            p = nl ? nl + 1 : buf + n;
+        }
+        char* last = NULL;
+        while(*p) {
+            char* nl = strchr(p, '\n');
+            if(!nl) break;
+            *nl = 0;
+            if(p[0] == 'U' && p[1] == '\t') last = p + 2;
+            p = nl + 1;
+        }
+        if(last) {
+            char* raw = malloc(strlen(last) + 4);
+            size_t r = 0;
+            for(const char* q = last; *q; q++) {
+                if(*q == '\\' && q[1] == 'n') {
+                    raw[r++] = ' ';
+                    q++;
+                } else if(*q == '\\' && q[1] == '\\') {
+                    raw[r++] = '\\';
+                    q++;
+                } else {
+                    raw[r++] = *q;
+                }
+            }
+            raw[r] = 0;
+            char* folded = malloc(r + 8);
+            text_fold(raw, folded, r + 8);
+            size_t flen = strlen(folded);
+            const size_t max = 17;
+            if(flen > max) {
+                folded[max] = 0;
+                snprintf(out, cap, "%s...", folded);
+            } else if(flen > 0) {
+                snprintf(out, cap, "%s", folded);
+            }
+            free(folded);
+            free(raw);
+        }
         free(buf);
     }
     storage_file_close(file);

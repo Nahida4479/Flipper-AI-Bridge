@@ -5,6 +5,7 @@
 #include <gui/modules/variable_item_list.h>
 #include <gui/modules/widget.h>
 #include <gui/modules/dialog_ex.h>
+#include <gui/modules/submenu.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -26,6 +27,7 @@ typedef enum {
     ViewSettings,
     ViewInfo,
     ViewConfirm,
+    ViewPicker,
 } ViewId;
 
 typedef enum {
@@ -74,6 +76,7 @@ typedef struct {
     VariableItemList* settings;
     Widget* info;
     DialogEx* confirm;
+    Submenu* picker;
     Store* store;
     Suggest* suggest;
     ChatLog* log;
@@ -751,11 +754,38 @@ static void sync_menu(App* app) {
         true);
 }
 
+static void picker_cb(void* context, uint32_t index) {
+    App* app = context;
+    store_open_slot(app->store, (int)index);
+    enter_chat(app);
+}
+
+static void show_picker(App* app) {
+    submenu_reset(app->picker);
+    submenu_set_header(app->picker, "Open which chat?");
+    int first = app->store->seq[0] >= app->store->seq[1] ? 0 : 1;
+    for(int n = 0; n < 2; n++) {
+        int slot = n == 0 ? first : 1 - first;
+        if(!store_slot_used(app->store, slot)) continue;
+        char snippet[32];
+        char label[40];
+        store_last_question(app->store, slot, snippet, sizeof(snippet));
+        snprintf(label, sizeof(label), "%s", snippet);
+        submenu_add_item(app->picker, label, (uint32_t)slot, picker_cb, app);
+    }
+    app->current = ViewPicker;
+    view_dispatcher_switch_to_view(app->dispatcher, ViewPicker);
+}
+
 static void menu_cb(void* context, uint32_t index) {
     App* app = context;
     switch(index) {
     case MenuChat:
-        enter_chat(app);
+        if(store_chat_count(app->store) >= 2) {
+            show_picker(app);
+        } else {
+            enter_chat(app);
+        }
         break;
     case MenuNewChat:
         dialog_ex_set_header(app->confirm, "New chat", 64, 0, AlignCenter, AlignTop);
@@ -908,6 +938,9 @@ int32_t ai_bridge_app(void* p) {
     app->info = widget_alloc();
     view_dispatcher_add_view(app->dispatcher, ViewInfo, widget_get_view(app->info));
 
+    app->picker = submenu_alloc();
+    view_dispatcher_add_view(app->dispatcher, ViewPicker, submenu_get_view(app->picker));
+
     app->confirm = dialog_ex_alloc();
     dialog_ex_set_context(app->confirm, app);
     dialog_ex_set_result_callback(app->confirm, confirm_cb);
@@ -933,6 +966,8 @@ int32_t ai_bridge_app(void* p) {
     view_dispatcher_remove_view(app->dispatcher, ViewSettings);
     view_dispatcher_remove_view(app->dispatcher, ViewInfo);
     view_dispatcher_remove_view(app->dispatcher, ViewConfirm);
+    view_dispatcher_remove_view(app->dispatcher, ViewPicker);
+    submenu_free(app->picker);
     view_free_model(app->menu_view);
     view_free(app->menu_view);
     view_free_model(app->chat_view);
