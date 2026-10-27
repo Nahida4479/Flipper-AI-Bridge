@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
                             Button(
                                 enabled = !upd.appBusy,
                                 onClick = { AppModel.installApk(context) }
-                            ) { Text("Download, verify checksum and install") }
+                            ) { Text("Download update") }
                         }
                         if (upd.appMessage.isNotEmpty()) Text(upd.appMessage)
                         Row(
