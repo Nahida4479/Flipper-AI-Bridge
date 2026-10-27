@@ -14,6 +14,11 @@ import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import kotlinx.coroutines.delay
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -171,7 +176,28 @@ class MainActivity : ComponentActivity() {
         var effortMenu by remember { mutableStateOf(false) }
         var confirmFap by remember { mutableStateOf(false) }
         var permsOk by remember { mutableStateOf(hasPermissions()) }
+        var debugText by remember { mutableStateOf("") }
+        var wasBle by remember { mutableStateOf(false) }
+        var wasUsb by remember { mutableStateOf(false) }
         val context = LocalContext.current
+        val bleConnected = ui.bleStatus == "Connected"
+        val usbConnected = ui.usbStatus == "Connected"
+        val connected = bleConnected || usbConnected
+
+        LaunchedEffect(bleConnected) {
+            if (bleConnected && !wasBle) AppModel.showToast("Connected to ${bleName.ifEmpty { "Flipper" }}")
+            wasBle = bleConnected
+        }
+        LaunchedEffect(usbConnected) {
+            if (usbConnected && !wasUsb) AppModel.showToast("Connected to Flipper over USB")
+            wasUsb = usbConnected
+        }
+        LaunchedEffect(ui.running) {
+            while (true) {
+                debugText = TransportHub.ble?.debugLine() ?: ""
+                delay(1000)
+            }
+        }
 
         LaunchedEffect(Unit) {
             AppModel.check(context)
@@ -227,6 +253,9 @@ class MainActivity : ComponentActivity() {
                                 Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
                                 Text(labeled("USB: ", ui.usbStatus))
                                 if (ui.busy) Text("Asking the AI...")
+                                if (ui.running && debugText.isNotEmpty()) {
+                                    Text("Details: $debugText", style = MaterialTheme.typography.bodySmall)
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (!permsOk) {
                                         PressButton(onClick = { launcher.launch(requiredPermissions()) }) {
@@ -244,6 +273,43 @@ class MainActivity : ComponentActivity() {
                                             BridgeService.stop(context)
                                             AppModel.showToast("Service stopped")
                                         }) { Text("Stop") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        AnimatedVisibility(
+                            visible = connected,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Card(
+                                Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        ConnectionBadge(connected)
+                                        Column {
+                                            Text(
+                                                "Connected to Flipper",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                if (usbConnected) "Over USB" else (if (bleName.isEmpty()) "Over Bluetooth Low Energy" else "$bleName, Bluetooth Low Energy"),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    }
+                                    if (bleConnected) {
+                                        PressButton(outlined = true, onClick = {
+                                            BridgeService.start(context, BridgeService.ACTION_DISCONNECT_BLE)
+                                            bleName = ""
+                                            AppModel.showToast("Disconnected from the Flipper")
+                                        }) { Text("Disconnect") }
                                     }
                                 }
                             }
@@ -409,6 +475,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     item {
+                        AnimatedVisibility(
+                            visible = !connected,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
                         Appear(240) {
                             SectionCard {
                                 Text("Find your Flipper", style = MaterialTheme.typography.titleMedium)
@@ -436,6 +507,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 Text("USB: just plug the Flipper in. USB has priority over Bluetooth.")
                             }
+                        }
                         }
                     }
                     item {

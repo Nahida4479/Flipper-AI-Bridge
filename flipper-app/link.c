@@ -40,6 +40,9 @@ struct Link {
     volatile bool ble_ready;
     volatile bool usb_ready;
     volatile bool started;
+    volatile uint32_t rx_bytes;
+    volatile uint32_t pings;
+    volatile uint32_t pings_ok;
 };
 
 static void notify(Link* link) {
@@ -98,6 +101,7 @@ static int32_t link_worker(void* context) {
 static uint16_t ble_event(SerialServiceEvent event, void* context) {
     Link* link = context;
     if(event.event == SerialServiceEventTypeDataReceived) {
+        link->rx_bytes += event.data.size;
         furi_stream_buffer_send(link->ble_rx, event.data.buffer, event.data.size, 0);
         furi_thread_flags_set(furi_thread_get_id(link->thread), EvtBle);
     }
@@ -284,6 +288,13 @@ void link_ping(Link* link) {
     if(link_usb_active(link)) {
         furi_hal_cdc_send(0, (uint8_t*)ping, sizeof(ping));
     } else if(link->ble_connected && link->profile) {
-        ble_profile_serial_tx(link->profile, (uint8_t*)ping, sizeof(ping));
+        link->pings++;
+        if(ble_profile_serial_tx(link->profile, (uint8_t*)ping, sizeof(ping))) link->pings_ok++;
     }
+}
+
+void link_stats(Link* link, uint32_t* rx_bytes, uint32_t* pings, uint32_t* pings_ok) {
+    *rx_bytes = link->rx_bytes;
+    *pings = link->pings;
+    *pings_ok = link->pings_ok;
 }

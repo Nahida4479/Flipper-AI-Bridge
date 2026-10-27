@@ -60,6 +60,10 @@ class BridgeService : Service() {
         }
         if (intent?.action == ACTION_RESTART_BLE) {
             ble?.start(store.bleAddress)
+        } else if (intent?.action == ACTION_DISCONNECT_BLE) {
+            store.bleAddress = ""
+            store.bleName = ""
+            ble?.stop()
         } else if (intent?.action == ACTION_RESCAN_USB) {
             usb?.rescan()
         } else {
@@ -141,7 +145,7 @@ class BridgeService : Service() {
 
     private fun onLine(source: Transport, line: String) {
         when {
-            line == "P" -> source.send("H")
+            line == "P" || line == "@app" -> source.send("H")
             line == "N" -> synchronized(history) { history.clear() }
             line.startsWith("U:") -> synchronized(history) {
                 history.add(ChatTurn("user", Protocol.unescape(line.substring(2))))
@@ -189,6 +193,7 @@ class BridgeService : Service() {
         private const val NOTIFICATION_ID = 7
         const val ACTION_STOP = "com.flipperai.bridge.STOP"
         const val ACTION_RESTART_BLE = "com.flipperai.bridge.RESTART_BLE"
+        const val ACTION_DISCONNECT_BLE = "com.flipperai.bridge.DISCONNECT_BLE"
         const val ACTION_RESCAN_USB = "com.flipperai.bridge.RESCAN_USB"
 
         fun start(context: Context, action: String? = null) {

@@ -1,7 +1,11 @@
 package com.flipperai.bridge
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -12,7 +16,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -131,6 +138,52 @@ fun ToastBanner(message: String?, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ConnectionBadge(connected: Boolean) {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val ring by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Restart),
+        label = "ring"
+    )
+    val ringAlpha by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Restart),
+        label = "ringAlpha"
+    )
+    val pop by animateFloatAsState(
+        targetValue = if (connected) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "pop"
+    )
+    Box(modifier = Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .graphicsLayer {
+                    scaleX = ring
+                    scaleY = ring
+                    alpha = ringAlpha * pop
+                }
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .graphicsLayer {
+                    scaleX = pop
+                    scaleY = pop
+                }
+                .background(MaterialTheme.colorScheme.primary, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("\u2713", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleLarge)
         }
     }
 }

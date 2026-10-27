@@ -575,20 +575,28 @@ static void show_menu(App* app) {
 static void show_info(App* app) {
     widget_reset(app->info);
     LinkKind kind = link_kind(app->link);
+    uint32_t rx = 0;
+    uint32_t pings = 0;
+    uint32_t pings_ok = 0;
+    link_stats(app->link, &rx, &pings, &pings_ok);
     FuriString* text = furi_string_alloc();
     furi_string_printf(
         text,
-        "\e#AI Bridge\n\e*Version:\e* %s\n\e*Link:\e* %s\n"
-        "1. Install the Android app\n"
-        "2. Pair it with this Flipper (Bluetooth) or plug in USB\n"
-        "3. USB is used automatically when connected\n\n"
+        "\e#AI Bridge\n"
+        "\e*Author:\e* Nahida4479\n"
+        "github.com/Nahida4479/\nFlipper-AI-Bridge\n\n"
+        "\e*Version:\e* %s\n"
+        "\e*Link:\e* %s\n\n"
+        "\e*Bluetooth:\e* pair the phone app with this Flipper and pick it in the app.\n"
+        "\e*USB:\e* plug the Flipper into the phone. USB is used automatically and has priority over Bluetooth.\n\n"
         "Chats: only 2 are kept. Starting a new chat when both slots are used replaces the "
         "oldest one. Max 500 KB per chat.\n\n"
-        "Hints: Hold OK = accept. Hold Back = menu.\n"
-        "Dictionary: %s",
+        "Debug: rx %lu B, ping %lu/%lu",
         APP_VERSION,
         kind == LinkKindUsb ? "USB" : kind == LinkKindBle ? "Bluetooth" : "not connected",
-        suggest_dict_available(app->suggest) ? "ok" : "missing - reinstall app");
+        (unsigned long)rx,
+        (unsigned long)pings_ok,
+        (unsigned long)pings);
     widget_add_text_scroll_element(app->info, 0, 0, 128, 64, furi_string_get_cstr(text));
     furi_string_free(text);
     app->current = ViewInfo;

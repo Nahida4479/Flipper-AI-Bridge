@@ -173,6 +173,9 @@ object AppModel {
                         throw RpcException("Bluetooth did not reconnect. Check that the Flipper is on and not running AI Bridge")
                     }
                     Thread.sleep(1500)
+                    if (transport.rpcActive == false) {
+                        throw RpcException("The Flipper is running an app. Close AI Bridge on the Flipper and try again")
+                    }
                 }
                 state.update { it.copy(fapMessage = "Checksum OK, talking to the Flipper") }
                 val client = FlipperRpc(transport)
