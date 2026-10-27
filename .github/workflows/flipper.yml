@@ -1,0 +1,37 @@
+name: Build Flipper app
+
+on:
+  push:
+    branches: [main, beta]
+    paths:
+      - "flipper-app/**"
+      - ".github/workflows/flipper.yml"
+  pull_request:
+    paths:
+      - "flipper-app/**"
+  workflow_dispatch:
+
+jobs:
+  fap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build .fap
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1
+        id: build
+        with:
+          app-dir: flipper-app
+          sdk-channel: release
+
+      - name: Prepare SD card layout
+        run: |
+          mkdir -p sdcard/apps/Tools sdcard/apps_assets/claude_bridge
+          cp "${{ steps.build.outputs.fap-artifacts }}"/*.fap sdcard/apps/Tools/ 2>/dev/null || cp flipper-app/dist/*.fap sdcard/apps/Tools/
+          cp -r flipper-app/assets/dict sdcard/apps_assets/claude_bridge/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flipper-claude-bridge-sdcard
+          path: sdcard
+          if-no-files-found: error
