@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include "chatlog.h"
+#include "dictpack.h"
 #include "link.h"
 #include "paths.h"
 #include "store.h"
@@ -573,7 +574,7 @@ static void show_info(App* app) {
         "Hints: Hold OK = accept. Hold Back = menu.\n"
         "Dictionary: %s",
         kind == LinkKindUsb ? "USB" : kind == LinkKindBle ? "Bluetooth" : "not connected",
-        suggest_dict_available(app->suggest) ? "ok" : "missing - copy apps_assets");
+        suggest_dict_available(app->suggest) ? "ok" : "missing - reinstall .fap");
     widget_add_text_scroll_element(app->info, 0, 0, 128, 64, furi_string_get_cstr(text));
     furi_string_free(text);
     app->current = ViewInfo;
@@ -687,6 +688,7 @@ int32_t claude_bridge_app(void* p) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
     app->store = store_alloc();
+    dict_ensure(app->store->storage);
     app->suggest = suggest_alloc(app->store->storage);
     suggest_set_lang(app->suggest, (SuggestLang)app->store->lang);
     app->log = chatlog_alloc();

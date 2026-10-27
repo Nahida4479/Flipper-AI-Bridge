@@ -24,7 +24,7 @@ Polish version: [README.pl.md](README.pl.md)
 | --- | --- |
 | `flipper-app/` | Flipper Zero app (C, `ufbt`) |
 | `android-app/` | Android app (Kotlin, Jetpack Compose) |
-| `release/` | Prebuilt `claude_bridge.fap` and dictionary files |
+| `release/` | Prebuilt `claude_bridge.fap` (dictionaries included) |
 | `tools/make_dict.py` | Generates the dictionary files |
 | `.github/workflows/` | GitHub Actions that build the APK and the `.fap` |
 
@@ -34,9 +34,8 @@ Branches: `main` is the stable first version, `beta` receives new changes for te
 
 ### Flipper
 
-1. Copy `release/claude_bridge.fap` to `SD:/apps/Tools/`.
-2. Copy the folder `release/apps_assets/claude_bridge/` to `SD:/apps_assets/claude_bridge/` (it must contain `dict/en.dict` and `dict/pl.dict`).
-3. Open `Apps -> Tools -> Claude Bridge`.
+1. Copy the single file `claude_bridge.fap` to `SD:/apps/Tools/`.
+2. Open `Apps -> Tools -> Claude Bridge`. On the first start the app unpacks the dictionaries that are bundled inside the `.fap` to `SD:/apps_data/claude_bridge/dict/`.
 
 Or build it yourself: `cd flipper-app && ufbt` (or `ufbt launch` with the Flipper connected).
 
@@ -48,7 +47,7 @@ Download the APK from the GitHub Actions run of the `Build Android APK` workflow
 
 1. On the phone: open the app, grant permissions, enter your Claude API key and press `Save key`, then press `Start`.
 2. On the Flipper: open Claude Bridge.
-3. Bluetooth: on the phone press `Scan for Flipper` and pick your Flipper. Accept the pairing request (the Flipper shows a PIN). The connection is restored automatically later.
+3. Bluetooth: on the phone press `Scan for Flipper` and pick your Flipper (already paired devices are listed too; a Flipper that is already connected to the phone does not advertise, so it only shows up in the paired list). Accept the pairing request (the Flipper shows a PIN). The connection is restored automatically later.
 4. USB: plug the Flipper into the phone with a USB-C cable (OTG). Accept the USB permission once and choose "always". USB is then used automatically.
 5. On the Flipper choose `Chat` and type.
 
