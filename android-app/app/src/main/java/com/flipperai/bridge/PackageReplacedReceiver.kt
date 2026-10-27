@@ -14,6 +14,12 @@ class PackageReplacedReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
             }
         }
+        try {
+            context.startActivity(
+                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+        }
         Notifier.updated(context, BuildConfig.VERSION_NAME)
         UpdateWorker.schedule(context)
     }
