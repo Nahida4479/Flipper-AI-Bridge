@@ -88,6 +88,10 @@ class SecureStore(context: Context) {
         get() = getSecret(FAP_TAG)
         set(value) = putSecret(FAP_TAG, value)
 
+    var requestLog: String
+        get() = getSecret(REQUEST_LOG)
+        set(value) = putSecret(REQUEST_LOG, value)
+
     var flipperFapSha: String
         get() = getSecret(FAP_SHA)
         set(value) = putSecret(FAP_SHA, value)
@@ -113,6 +117,7 @@ class SecureStore(context: Context) {
         private const val BETA_UPDATES = "beta_updates"
         private const val FAP_SHA = "flipper_fap_sha"
         private const val FAP_TAG = "flipper_fap_tag"
+        private const val REQUEST_LOG = "request_log"
         private const val SERVICE_WANTED = "service_wanted"
         private const val LAST_NOTIFIED = "last_notified_tag"
         private const val KEY_ALIAS = "flipper_ai_bridge_key"

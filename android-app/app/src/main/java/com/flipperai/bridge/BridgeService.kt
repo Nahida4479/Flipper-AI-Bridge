@@ -35,6 +35,7 @@ class BridgeService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = SecureStore(this)
+        BridgeState.attach(this)
         client = ApiClient(store)
     }
 

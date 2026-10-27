@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = SecureStore(this)
+        BridgeState.attach(this)
         handleIntent(intent)
         setContent {
             BridgeTheme {
