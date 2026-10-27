@@ -13,6 +13,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +39,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -83,7 +92,7 @@ class MainActivity : ComponentActivity() {
         store = SecureStore(this)
         handleIntent(intent)
         setContent {
-            MaterialTheme {
+            BridgeTheme {
                 Screen()
             }
         }
@@ -149,6 +158,7 @@ class MainActivity : ComponentActivity() {
     private fun Screen() {
         val ui by BridgeState.state.collectAsState()
         val upd by AppModel.state.collectAsState()
+        val toast by AppModel.toast.collectAsState()
         var apiKey by remember { mutableStateOf("") }
         var apiKeySaved by remember { mutableStateOf(store.apiKey.isNotEmpty()) }
         var editingKey by remember { mutableStateOf(false) }
@@ -159,236 +169,325 @@ class MainActivity : ComponentActivity() {
         var beta by remember { mutableStateOf(store.betaUpdates) }
         var modelMenu by remember { mutableStateOf(false) }
         var effortMenu by remember { mutableStateOf(false) }
+        var confirmFap by remember { mutableStateOf(false) }
         var permsOk by remember { mutableStateOf(hasPermissions()) }
         val context = LocalContext.current
 
-        LaunchedEffect(Unit) { AppModel.check(context) }
+        LaunchedEffect(Unit) {
+            AppModel.check(context)
+            UpdateWorker.schedule(context)
+        }
 
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ) { permsOk = hasPermissions() }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { Spacer(Modifier.height(28.dp)) }
-            item {
-                Text("Flipper AI Bridge", style = MaterialTheme.typography.headlineSmall)
-            }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(labeled("Service: ", if (ui.running) "running" else "stopped"))
-                        Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
-                        Text(labeled("USB: ", ui.usbStatus))
-                        if (ui.busy) Text("Asking the AI...")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (!permsOk) {
-                                Button(onClick = { launcher.launch(requiredPermissions()) }) {
-                                    Text("Grant permissions")
+            permsOk = hasPermissions()
+            if (permsOk) AppModel.showToast("Permissions granted")
+        }
+
+        if (confirmFap) {
+            val update = upd.fapState == FapState.UpdateAvailable
+            AlertDialog(
+                onDismissRequest = { confirmFap = false },
+                title = { Text(if (update) "Update the Flipper app?" else "Install the Flipper app?") },
+                text = {
+                    Text(
+                        "Close AI Bridge on the Flipper first. The old app is replaced; chats and settings on the Flipper are kept."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmFap = false
+                        AppModel.installFap(context)
+                    }) { Text(if (update) "Update" else "Install") }
+                },
+                dismissButton = { TextButton(onClick = { confirmFap = false }) { Text("Cancel") } }
+            )
+        }
+
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item { Spacer(Modifier.height(28.dp)) }
+                    item {
+                        Appear {
+                            Text("Flipper AI Bridge", style = MaterialTheme.typography.headlineMedium)
+                        }
+                    }
+                    item {
+                        Appear(60) {
+                            SectionCard {
+                                Text(labeled("Service: ", if (ui.running) "running" else "stopped"))
+                                Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
+                                Text(labeled("USB: ", ui.usbStatus))
+                                if (ui.busy) Text("Asking the AI...")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (!permsOk) {
+                                        PressButton(onClick = { launcher.launch(requiredPermissions()) }) {
+                                            Text("Grant permissions")
+                                        }
+                                    } else if (!ui.running) {
+                                        PressButton(onClick = {
+                                            store.serviceWanted = true
+                                            BridgeService.start(context)
+                                            AppModel.showToast("Service started")
+                                        }) { Text("Start") }
+                                    } else {
+                                        PressButton(outlined = true, onClick = {
+                                            store.serviceWanted = false
+                                            BridgeService.stop(context)
+                                            AppModel.showToast("Service stopped")
+                                        }) { Text("Stop") }
+                                    }
                                 }
-                            } else if (!ui.running) {
-                                Button(onClick = { BridgeService.start(context) }) { Text("Start") }
-                            } else {
-                                OutlinedButton(onClick = { BridgeService.stop(context) }) { Text("Stop") }
                             }
                         }
                     }
-                }
-            }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Updates", style = MaterialTheme.typography.titleMedium)
-                        Text("Installed version: ${BuildConfig.VERSION_NAME}")
-                        if (upd.appUpdate) {
-                            Text("New version available: ${upd.latestTag}")
-                            if (upd.appBusy && upd.appProgress >= 0) {
-                                LinearProgressIndicator(
-                                    progress = { upd.appProgress / 100f },
+                    item {
+                        Appear(120) {
+                            SectionCard {
+                                Text("Updates", style = MaterialTheme.typography.titleMedium)
+                                Text(labeled("Phone app: ", "version ${BuildConfig.VERSION_NAME}"))
+                                if (upd.appUpdate) {
+                                    Text("New version available: ${upd.latestTag}", color = MaterialTheme.colorScheme.primary)
+                                    ProgressBar(upd.appBusy, upd.appProgress)
+                                    PressButton(
+                                        enabled = !upd.appBusy,
+                                        onClick = { AppModel.installApk(context) }
+                                    ) { Text("Download, verify and install") }
+                                }
+                                if (upd.appMessage.isNotEmpty()) Text(upd.appMessage, style = MaterialTheme.typography.bodySmall)
+
+                                HorizontalDivider()
+
+                                val fapLine = when (upd.fapState) {
+                                    FapState.UpToDate -> "up to date" + if (upd.fapInstalledTag.isNotEmpty()) " (${upd.fapInstalledTag})" else ""
+                                    FapState.UpdateAvailable -> "update available (${upd.latestTag})"
+                                    FapState.NotInstalled -> "not installed from this phone yet"
+                                    FapState.Unknown -> "unknown"
+                                }
+                                Text(labeled("Flipper app: ", fapLine))
+                                ProgressBar(upd.fapBusy, upd.fapProgress)
+                                if (upd.fapMessage.isNotEmpty()) Text(upd.fapMessage, style = MaterialTheme.typography.bodySmall)
+                                val needsInstall = upd.fapState == FapState.UpdateAvailable || upd.fapState == FapState.NotInstalled
+                                PressButton(
+                                    outlined = !needsInstall,
+                                    enabled = ui.running && !upd.fapBusy,
+                                    onClick = { confirmFap = true }
+                                ) {
+                                    Text(
+                                        when (upd.fapState) {
+                                            FapState.UpdateAvailable -> "Update on Flipper"
+                                            FapState.UpToDate -> "Reinstall on Flipper"
+                                            else -> "Install on Flipper"
+                                        }
+                                    )
+                                }
+                                if (!ui.running) {
+                                    Text("Start the service and connect the Flipper to install.", style = MaterialTheme.typography.bodySmall)
+                                }
+
+                                HorizontalDivider()
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Switch(checked = beta, onCheckedChange = {
+                                        beta = it
+                                        store.betaUpdates = it
+                                        AppModel.showToast(if (it) "Beta versions included" else "Beta versions off")
+                                    })
+                                    Text("Include beta versions")
+                                }
+                                PressButton(
+                                    outlined = true,
+                                    enabled = !upd.checking,
+                                    onClick = { AppModel.check(context, announce = true) }
+                                ) { Text(if (upd.checking) "Checking..." else "Check for updates") }
+                                Text(
+                                    "New versions are checked automatically every 12 hours and you get a notification.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        Appear(180) {
+                            SectionCard {
+                                Text("Anthropic API", style = MaterialTheme.typography.titleMedium)
+                                if (apiKeySaved && !editingKey) {
+                                    Text(labeled("API key: ", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        PressButton(outlined = true, onClick = { editingKey = true }) { Text("Change key") }
+                                        TextButton(onClick = {
+                                            store.apiKey = ""
+                                            apiKeySaved = false
+                                            AppModel.showToast("API key removed")
+                                        }) { Text("Remove key") }
+                                    }
+                                } else {
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = { apiKey = it },
+                                        label = { Text("API key") },
+                                        singleLine = true,
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        PressButton(
+                                            enabled = apiKey.isNotBlank(),
+                                            onClick = {
+                                                store.apiKey = apiKey.trim()
+                                                apiKey = ""
+                                                apiKeySaved = true
+                                                editingKey = false
+                                                AppModel.showToast("API key saved")
+                                            }
+                                        ) { Text("Save key") }
+                                        if (apiKeySaved) {
+                                            TextButton(onClick = {
+                                                apiKey = ""
+                                                editingKey = false
+                                            }) { Text("Cancel") }
+                                        }
+                                    }
+                                }
+                                Text(labeled("Model: ", MODEL_NAMES[model] ?: model))
+                                Box {
+                                    PressButton(outlined = true, onClick = { modelMenu = true }) { Text("Pick a model") }
+                                    DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                                        SecureStore.MODEL_IDS.forEach { m ->
+                                            DropdownMenuItem(
+                                                text = { Text(MODEL_NAMES[m] ?: m) },
+                                                onClick = {
+                                                    model = m
+                                                    store.model = m
+                                                    modelMenu = false
+                                                    AppModel.showToast("Model: ${MODEL_NAMES[m] ?: m}")
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(labeled("Effort: ", effort.replaceFirstChar { it.uppercase() }))
+                                Box {
+                                    PressButton(outlined = true, onClick = { effortMenu = true }) { Text("Pick effort") }
+                                    DropdownMenu(expanded = effortMenu, onDismissRequest = { effortMenu = false }) {
+                                        SecureStore.EFFORTS.forEach { e ->
+                                            DropdownMenuItem(
+                                                text = { Text(e.replaceFirstChar { it.uppercase() }) },
+                                                onClick = {
+                                                    effort = e
+                                                    store.effort = e
+                                                    effortMenu = false
+                                                    AppModel.showToast("Effort: ${e.replaceFirstChar { it.uppercase() }}")
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Text("Lower effort answers faster and cheaper.", style = MaterialTheme.typography.bodySmall)
+                                OutlinedTextField(
+                                    value = extra,
+                                    onValueChange = {
+                                        extra = it
+                                        store.extraPrompt = it
+                                    },
+                                    label = { Text("Extra system prompt (optional)") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
-                            Button(
-                                enabled = !upd.appBusy,
-                                onClick = { AppModel.installApk(context) }
-                            ) { Text("Download, verify checksum and install") }
                         }
-                        if (upd.appMessage.isNotEmpty()) Text(upd.appMessage)
+                    }
+                    item {
+                        Appear(240) {
+                            SectionCard {
+                                Text("Find your Flipper", style = MaterialTheme.typography.titleMedium)
+                                Text(if (bleName.isEmpty()) "No Flipper selected" else "Selected: $bleName")
+                                Text("Bluetooth Low Energy (BLE). Paired devices are listed too. Pick your Flipper from the list.")
+                                PressButton(
+                                    enabled = permsOk && !scanning,
+                                    onClick = { startScan() }
+                                ) { Text(if (scanning) "Scanning..." else "Scan for Flipper") }
+                                found.forEach { (name, address) ->
+                                    PressButton(
+                                        outlined = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = {
+                                            stopScan()
+                                            store.bleAddress = address
+                                            store.bleName = name
+                                            bleName = name
+                                            AppModel.showToast("Selected $name")
+                                            if (ui.running) {
+                                                BridgeService.start(context, BridgeService.ACTION_RESTART_BLE)
+                                            }
+                                        }
+                                    ) { Text("$name  ($address)") }
+                                }
+                                Text("USB: just plug the Flipper in. USB has priority over Bluetooth.")
+                            }
+                        }
+                    }
+                    item {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Switch(checked = beta, onCheckedChange = {
-                                beta = it
-                                store.betaUpdates = it
-                            })
-                            Text("Include beta versions")
+                            Text("Recent requests", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { BridgeState.clearLog() }) { Text("Clear") }
                         }
-                        OutlinedButton(
-                            enabled = !upd.checking,
-                            onClick = { AppModel.check(context) }
-                        ) { Text(if (upd.checking) "Checking..." else "Check for updates") }
                     }
-                }
-            }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Anthropic API", style = MaterialTheme.typography.titleMedium)
-                        if (apiKeySaved && !editingKey) {
-                            Text(labeled("API key: ", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { editingKey = true }) { Text("Change key") }
-                                TextButton(onClick = {
-                                    store.apiKey = ""
-                                    apiKeySaved = false
-                                }) { Text("Remove key") }
-                            }
-                        } else {
-                            OutlinedTextField(
-                                value = apiKey,
-                                onValueChange = { apiKey = it },
-                                label = { Text("API key") },
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    enabled = apiKey.isNotBlank(),
-                                    onClick = {
-                                        store.apiKey = apiKey.trim()
-                                        apiKey = ""
-                                        apiKeySaved = true
-                                        editingKey = false
-                                    }
-                                ) { Text("Save key") }
-                                if (apiKeySaved) {
-                                    TextButton(onClick = {
-                                        apiKey = ""
-                                        editingKey = false
-                                    }) { Text("Cancel") }
-                                }
+                    items(ui.log) { entry ->
+                        Card(
+                            Modifier.fillMaxWidth().animateContentSize(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text("Q: ${entry.question}", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    (if (entry.error) "Error: " else "A: ") + entry.answer,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                         }
-                        Text(labeled("Model: ", MODEL_NAMES[model] ?: model))
-                        Box {
-                            OutlinedButton(onClick = { modelMenu = true }) { Text("Pick a model") }
-                            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                                SecureStore.MODEL_IDS.forEach { m ->
-                                    DropdownMenuItem(
-                                        text = { Text(MODEL_NAMES[m] ?: m) },
-                                        onClick = {
-                                            model = m
-                                            store.model = m
-                                            modelMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Text(labeled("Effort: ", effort.replaceFirstChar { it.uppercase() }))
-                        Box {
-                            OutlinedButton(onClick = { effortMenu = true }) { Text("Pick effort") }
-                            DropdownMenu(expanded = effortMenu, onDismissRequest = { effortMenu = false }) {
-                                SecureStore.EFFORTS.forEach { e ->
-                                    DropdownMenuItem(
-                                        text = { Text(e.replaceFirstChar { it.uppercase() }) },
-                                        onClick = {
-                                            effort = e
-                                            store.effort = e
-                                            effortMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Text("Lower effort answers faster and cheaper.", style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(
-                            value = extra,
-                            onValueChange = {
-                                extra = it
-                                store.extraPrompt = it
-                            },
-                            label = { Text("Extra system prompt (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
+                    item { Spacer(Modifier.height(24.dp)) }
                 }
+                ToastBanner(toast, Modifier.align(Alignment.TopCenter))
             }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Flipper", style = MaterialTheme.typography.titleMedium)
-                        Text(if (bleName.isEmpty()) "No Flipper selected" else "Selected: $bleName")
-                        Text("Bluetooth Low Energy (BLE). Paired devices are listed too. Pick your Flipper from the list.")
-                        Button(
-                            enabled = permsOk && !scanning,
-                            onClick = { startScan() }
-                        ) { Text(if (scanning) "Scanning..." else "Scan for Flipper") }
-                        found.forEach { (name, address) ->
-                            OutlinedButton(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = {
-                                    stopScan()
-                                    store.bleAddress = address
-                                    store.bleName = name
-                                    bleName = name
-                                    if (ui.running) {
-                                        BridgeService.start(context, BridgeService.ACTION_RESTART_BLE)
-                                    }
-                                }
-                            ) { Text("$name  ($address)") }
-                        }
-                        Text("USB: just plug the Flipper in. USB has priority over Bluetooth.")
-                        Text("Flipper app", style = MaterialTheme.typography.titleSmall)
-                        if (upd.fapStatus.isNotEmpty()) Text(upd.fapStatus)
-                        if (upd.fapBusy && upd.fapProgress >= 0) {
-                            LinearProgressIndicator(
-                                progress = { upd.fapProgress / 100f },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        if (upd.fapMessage.isNotEmpty()) Text(upd.fapMessage)
-                        Button(
-                            enabled = ui.running && !upd.fapBusy,
-                            onClick = { AppModel.installFap(context) }
-                        ) { Text(if (upd.fapUpdate && upd.fapStatus.startsWith("Update")) "Update on Flipper" else "Install on Flipper") }
-                        Text(
-                            "Start the service first and connect the Flipper. Close AI Bridge on the Flipper before installing. Chats and settings on the Flipper are kept.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Recent requests", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { BridgeState.clearLog() }) { Text("Clear") }
-                }
-            }
-            items(ui.log) { entry ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("Q: ${entry.question}", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            (if (entry.error) "Error: " else "A: ") + entry.answer,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+
+    @Composable
+    private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+        Card(
+            Modifier.fillMaxWidth().animateContentSize(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        }
+    }
+
+    @Composable
+    private fun ProgressBar(visible: Boolean, percent: Int) {
+        AnimatedVisibility(visible = visible && percent >= 0) {
+            val animated by animateFloatAsState(
+                targetValue = (percent.coerceIn(0, 100)) / 100f,
+                animationSpec = tween(300),
+                label = "progress"
+            )
+            LinearProgressIndicator(progress = { animated }, modifier = Modifier.fillMaxWidth())
         }
     }
 

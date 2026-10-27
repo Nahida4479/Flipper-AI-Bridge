@@ -76,6 +76,18 @@ class SecureStore(context: Context) {
         get() = getSecret(BETA_UPDATES) == "1"
         set(value) = putSecret(BETA_UPDATES, if (value) "1" else "")
 
+    var serviceWanted: Boolean
+        get() = getSecret(SERVICE_WANTED) == "1"
+        set(value) = putSecret(SERVICE_WANTED, if (value) "1" else "")
+
+    var lastNotifiedTag: String
+        get() = getSecret(LAST_NOTIFIED)
+        set(value) = putSecret(LAST_NOTIFIED, value)
+
+    var flipperFapTag: String
+        get() = getSecret(FAP_TAG)
+        set(value) = putSecret(FAP_TAG, value)
+
     var flipperFapSha: String
         get() = getSecret(FAP_SHA)
         set(value) = putSecret(FAP_SHA, value)
@@ -100,6 +112,9 @@ class SecureStore(context: Context) {
         private const val EFFORT = "effort"
         private const val BETA_UPDATES = "beta_updates"
         private const val FAP_SHA = "flipper_fap_sha"
+        private const val FAP_TAG = "flipper_fap_tag"
+        private const val SERVICE_WANTED = "service_wanted"
+        private const val LAST_NOTIFIED = "last_notified_tag"
         private const val KEY_ALIAS = "flipper_ai_bridge_key"
         private const val TRANSFORM = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12

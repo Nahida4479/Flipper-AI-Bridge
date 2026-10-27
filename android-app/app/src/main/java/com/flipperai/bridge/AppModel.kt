@@ -8,10 +8,19 @@ import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
+
+enum class FapState { Unknown, NotInstalled, UpToDate, UpdateAvailable }
+
+data class UpdateInfo(
+    val latestTag: String,
+    val appUpdate: Boolean,
+    val fapState: FapState
+)
 
 data class UpdateUi(
     val checking: Boolean = false,
@@ -20,8 +29,8 @@ data class UpdateUi(
     val appBusy: Boolean = false,
     val appProgress: Int = -1,
     val appMessage: String = "",
-    val fapStatus: String = "",
-    val fapUpdate: Boolean = false,
+    val fapState: FapState = FapState.Unknown,
+    val fapInstalledTag: String = "",
     val fapBusy: Boolean = false,
     val fapProgress: Int = -1,
     val fapMessage: String = ""
@@ -29,20 +38,43 @@ data class UpdateUi(
 
 object AppModel {
     val state = MutableStateFlow(UpdateUi())
+    val toast = MutableStateFlow<String?>(null)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var release: ReleaseInfo? = null
     const val INSTALL_ACTION = "com.flipperai.bridge.INSTALL_RESULT"
     private const val FAP_DIR = "/ext/apps/Tools"
     private const val LEGACY_FAP_NAME = "claude_bridge.fap"
 
-    private fun includeBeta(store: SecureStore) = store.betaUpdates || BuildConfig.VERSION_NAME.contains("-")
+    fun includeBeta(store: SecureStore) = store.betaUpdates || BuildConfig.VERSION_NAME.contains("-")
+
+    fun showToast(message: String) {
+        toast.value = message
+        scope.launch {
+            delay(3200)
+            toast.compareAndSet(message, null)
+        }
+    }
 
     fun reportInstall(message: String) = state.update { it.copy(appBusy = false, appProgress = -1, appMessage = message) }
 
-    fun check(context: Context) {
+    fun evaluate(latest: ReleaseInfo, store: SecureStore): UpdateInfo {
+        val newer = Versions.compare(latest.tag, BuildConfig.VERSION_NAME) > 0 &&
+            latest.asset(Releases.APK_NAME) != null
+        val fapAsset = latest.asset(Releases.FAP_NAME)
+        val installedSha = store.flipperFapSha
+        val fap = when {
+            fapAsset == null -> FapState.Unknown
+            installedSha.isEmpty() -> FapState.NotInstalled
+            fapAsset.sha256.isNotEmpty() && fapAsset.sha256 != installedSha -> FapState.UpdateAvailable
+            else -> FapState.UpToDate
+        }
+        return UpdateInfo(latest.tag, newer, fap)
+    }
+
+    fun check(context: Context, announce: Boolean = false) {
         if (state.value.checking) return
         val store = SecureStore(context)
-        state.update { it.copy(checking = true, appMessage = "", fapMessage = "") }
+        state.update { it.copy(checking = true, appMessage = "") }
         scope.launch {
             try {
                 val latest = Releases.latest(includeBeta(store))
@@ -51,42 +83,26 @@ object AppModel {
                     state.update { it.copy(checking = false, appMessage = "No release found") }
                     return@launch
                 }
-                val newer = Versions.compare(latest.tag, BuildConfig.VERSION_NAME) > 0 &&
-                    latest.asset(Releases.APK_NAME) != null
-                val fapAsset = latest.asset(Releases.FAP_NAME)
-                val installedSha = store.flipperFapSha
-                val fapStatus: String
-                val fapUpdate: Boolean
-                when {
-                    fapAsset == null -> {
-                        fapStatus = "No Flipper app in the latest release"
-                        fapUpdate = false
-                    }
-                    installedSha.isEmpty() -> {
-                        fapStatus = "Not installed from this phone yet"
-                        fapUpdate = true
-                    }
-                    fapAsset.sha256.isNotEmpty() && fapAsset.sha256 != installedSha -> {
-                        fapStatus = "Update available for the Flipper app"
-                        fapUpdate = true
-                    }
-                    else -> {
-                        fapStatus = "Flipper app is up to date"
-                        fapUpdate = false
-                    }
-                }
+                val info = evaluate(latest, store)
                 state.update {
                     it.copy(
                         checking = false,
                         latestTag = latest.tag,
-                        appUpdate = newer,
-                        appMessage = if (newer) "" else "Phone app is up to date",
-                        fapStatus = fapStatus,
-                        fapUpdate = fapUpdate
+                        appUpdate = info.appUpdate,
+                        appMessage = if (info.appUpdate) "" else "Phone app is up to date",
+                        fapState = info.fapState,
+                        fapInstalledTag = store.flipperFapTag
+                    )
+                }
+                if (announce) {
+                    showToast(
+                        if (info.appUpdate || info.fapState == FapState.UpdateAvailable) "Update available: ${latest.tag}"
+                        else "Everything is up to date"
                     )
                 }
             } catch (e: Exception) {
                 state.update { it.copy(checking = false, appMessage = "Update check failed: ${e.message}") }
+                if (announce) showToast("Update check failed")
             }
         }
     }
@@ -105,9 +121,11 @@ object AppModel {
                 val dir = File(app.cacheDir, "updates").apply { mkdirs() }
                 val file = File(dir, "update.apk")
                 file.writeBytes(data)
+                showToast("Checksum verified")
                 commitInstall(app, file)
             } catch (e: Exception) {
                 state.update { it.copy(appBusy = false, appProgress = -1, appMessage = "Update failed: ${e.message}") }
+                showToast("Update failed")
             }
         }
     }
@@ -115,6 +133,9 @@ object AppModel {
     private fun commitInstall(context: Context, apk: File) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        if (Build.VERSION.SDK_INT >= 31) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
             apk.inputStream().use { input ->
@@ -151,16 +172,28 @@ object AppModel {
                     if (!transport.reconnect(25000)) {
                         throw RpcException("Bluetooth did not reconnect. Check that the Flipper is on and not running AI Bridge")
                     }
+                    Thread.sleep(1500)
                 }
                 state.update { it.copy(fapMessage = "Checksum OK, talking to the Flipper") }
                 val client = FlipperRpc(transport)
                 rpc = client
                 client.open(startCli = transport is UsbTransport)
-                try {
-                    client.ping()
-                } catch (e: RpcException) {
+                var pinged = false
+                var lastError = ""
+                for (attempt in 1..4) {
+                    try {
+                        client.ping()
+                        pinged = true
+                        break
+                    } catch (e: RpcException) {
+                        lastError = e.message ?: ""
+                        if (lastError.contains("busy")) break
+                        Thread.sleep(800)
+                    }
+                }
+                if (!pinged) {
                     throw RpcException(
-                        "Flipper does not answer (${e.message}). Close AI Bridge on the Flipper, check the connection and try again"
+                        "Flipper does not answer ($lastError). Close AI Bridge on the Flipper, disconnect it from the computer and try again"
                     )
                 }
                 val existing = findExisting(client)
@@ -191,18 +224,21 @@ object AppModel {
                 if (existing?.legacy == true) client.delete("$dir/$LEGACY_FAP_NAME")
                 client.rename(temp, target)
                 store.flipperFapSha = Releases.sha256(data)
+                store.flipperFapTag = rel.tag
                 val where = target.removePrefix("/ext/")
                 state.update {
                     it.copy(
                         fapBusy = false,
                         fapProgress = -1,
-                        fapUpdate = false,
-                        fapStatus = "Installed on the Flipper: $where",
-                        fapMessage = "Done. Chats and settings were kept."
+                        fapState = FapState.UpToDate,
+                        fapInstalledTag = rel.tag,
+                        fapMessage = "Installed $where. Chats and settings were kept."
                     )
                 }
+                showToast("Flipper app installed")
             } catch (e: Exception) {
                 state.update { it.copy(fapBusy = false, fapProgress = -1, fapMessage = "Install failed: ${e.message}") }
+                showToast("Flipper install failed")
             } finally {
                 rpc?.close()
             }

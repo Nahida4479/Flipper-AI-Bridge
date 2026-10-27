@@ -13,8 +13,10 @@ class FlipperRpc(private val transport: Transport) {
     private val inbox = ArrayBlockingQueue<RpcReply>(256)
     private val pending = ByteArrayOutputStream()
     private var nextId = 1
+    private var cliSession = false
 
     fun open(startCli: Boolean) {
+        cliSession = startCli
         transport.rawSink = { feed(it) }
         if (startCli) {
             transport.sendRaw("start_rpc_session\r".toByteArray(Charsets.US_ASCII))
@@ -25,11 +27,13 @@ class FlipperRpc(private val transport: Transport) {
     }
 
     fun close() {
-        try {
-            val id = nextId++
-            transport.sendRaw(frame(Pb.uint(1, id.toLong()) + Pb.bytes(19, ByteArray(0))))
-            Thread.sleep(200)
-        } catch (e: Exception) {
+        if (cliSession) {
+            try {
+                val id = nextId++
+                transport.sendRaw(frame(Pb.uint(1, id.toLong()) + Pb.bytes(19, ByteArray(0))))
+                Thread.sleep(200)
+            } catch (e: Exception) {
+            }
         }
         transport.rawSink = null
     }
