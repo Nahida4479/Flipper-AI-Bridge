@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "app_version.h"
 #include "chatlog.h"
 #include "link.h"
 #include "paths.h"
@@ -57,6 +58,7 @@ typedef struct {
 typedef struct {
     uint8_t selected;
     bool ready;
+    bool linked;
     bool starting;
     LinkKind kind;
 } MenuModel;
@@ -576,7 +578,7 @@ static void show_info(App* app) {
     FuriString* text = furi_string_alloc();
     furi_string_printf(
         text,
-        "\e#AI Bridge\n\e*Link:\e* %s\n"
+        "\e#AI Bridge\n\e*Version:\e* %s\n\e*Link:\e* %s\n"
         "1. Install the Android app\n"
         "2. Pair it with this Flipper (Bluetooth) or plug in USB\n"
         "3. USB is used automatically when connected\n\n"
@@ -584,6 +586,7 @@ static void show_info(App* app) {
         "oldest one. Max 500 KB per chat.\n\n"
         "Hints: Hold OK = accept. Hold Back = menu.\n"
         "Dictionary: %s",
+        APP_VERSION,
         kind == LinkKindUsb ? "USB" : kind == LinkKindBle ? "Bluetooth" : "not connected",
         suggest_dict_available(app->suggest) ? "ok" : "missing - reinstall app");
     widget_add_text_scroll_element(app->info, 0, 0, 128, 64, furi_string_get_cstr(text));
@@ -604,38 +607,31 @@ static void menu_draw(Canvas* canvas, void* model) {
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 9, "AI Bridge");
+    int title_w = canvas_string_width(canvas, "AI Bridge");
     canvas_set_font(canvas, FontSecondary);
-    if(m->ready) {
-        canvas_draw_str_aligned(canvas, 126, 1, AlignRight, AlignTop, m->kind == LinkKindUsb ? "USB" : "BLE");
-    }
+    canvas_draw_str(canvas, 6 + title_w, 9, APP_VERSION);
     canvas_draw_line(canvas, 0, 11, 127, 11);
     for(int i = 0; i < 4; i++) {
         int y = 13 + i * 10;
-        bool sel = m->selected == i;
-        bool enabled = menu_enabled(m, i);
-        int tw = canvas_string_width(canvas, MENU_LABELS[i]);
-        if(sel && enabled) {
+        if(m->selected == i) {
             canvas_draw_box(canvas, 0, y, 128, 10);
             canvas_set_color(canvas, ColorWhite);
-        } else if(sel) {
-            canvas_draw_frame(canvas, 0, y, 128, 10);
         }
         canvas_draw_str(canvas, 4, y + 8, MENU_LABELS[i]);
         canvas_set_color(canvas, ColorBlack);
-        if(!enabled) {
-            canvas_set_color(canvas, ColorWhite);
-            for(int dy = 0; dy < 10; dy++) {
-                for(int dx = 0; dx < tw + 2; dx++) {
-                    if(((dx + dy) & 1) == 0) canvas_draw_dot(canvas, 4 + dx, y + dy);
-                }
-            }
-            canvas_set_color(canvas, ColorBlack);
-        }
     }
     canvas_draw_line(canvas, 0, 54, 127, 54);
-    const char* msg = m->starting ? "Starting..." :
-                      m->ready    ? "Phone app connected" :
-                                    "Phone app not detected";
+    const char* via = m->kind == LinkKindUsb ? "USB" : "BLE";
+    char msg[40];
+    if(m->starting) {
+        snprintf(msg, sizeof(msg), "Starting...");
+    } else if(m->ready) {
+        snprintf(msg, sizeof(msg), "Phone app connected (%s)", via);
+    } else if(m->linked) {
+        snprintf(msg, sizeof(msg), "%s linked, waiting for app", via);
+    } else {
+        snprintf(msg, sizeof(msg), "Phone app not detected");
+    }
     canvas_draw_str_aligned(canvas, 64, 59, AlignCenter, AlignCenter, msg);
 }
 
@@ -678,6 +674,7 @@ static void sync_menu(App* app) {
         MenuModel * m,
         {
             m->ready = ready;
+            m->linked = kind != LinkKindNone;
             m->starting = starting;
             m->kind = kind;
         },

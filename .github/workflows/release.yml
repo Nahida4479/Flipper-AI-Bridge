@@ -58,6 +58,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set version
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: printf '#pragma once\n\n#define APP_VERSION "%s"\n' "${TAG#v}" > flipper-app/app_version.h
       - name: Build .fap
         uses: flipperdevices/flipperzero-ufbt-action@v0.1
         with:
