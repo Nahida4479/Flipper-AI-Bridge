@@ -319,19 +319,6 @@ class MainActivity : ComponentActivity() {
                         Appear(120) {
                             SectionCard {
                                 Text("Updates", style = MaterialTheme.typography.titleMedium)
-                                Text(labeled("Phone app: ", "version ${BuildConfig.VERSION_NAME}"))
-                                if (upd.appUpdate) {
-                                    Text("New version available: ${upd.latestTag}", color = MaterialTheme.colorScheme.primary)
-                                    ProgressBar(upd.appBusy, upd.appProgress)
-                                    PressButton(
-                                        enabled = !upd.appBusy,
-                                        onClick = { AppModel.installApk(context) }
-                                    ) { Text("Download update") }
-                                }
-                                if (upd.appMessage.isNotEmpty()) Text(upd.appMessage, style = MaterialTheme.typography.bodySmall)
-
-                                HorizontalDivider()
-
                                 val fapLine = when (upd.fapState) {
                                     FapState.UpToDate -> "up to date" + if (upd.fapInstalledTag.isNotEmpty()) " (${upd.fapInstalledTag})" else ""
                                     FapState.UpdateAvailable -> "update available (${upd.latestTag})"
@@ -358,6 +345,19 @@ class MainActivity : ComponentActivity() {
                                 if (!ui.running) {
                                     Text("Start the service and connect the Flipper to install.", style = MaterialTheme.typography.bodySmall)
                                 }
+
+                                HorizontalDivider()
+
+                                Text(labeled("Phone app: ", "version ${BuildConfig.VERSION_NAME}"))
+                                if (upd.appUpdate) {
+                                    Text("New version available: ${upd.latestTag}", color = MaterialTheme.colorScheme.primary)
+                                    ProgressBar(upd.appBusy, upd.appProgress)
+                                    PressButton(
+                                        enabled = !upd.appBusy,
+                                        onClick = { AppModel.installApk(context) }
+                                    ) { Text("Download update") }
+                                }
+                                if (upd.appMessage.isNotEmpty()) Text(upd.appMessage, style = MaterialTheme.typography.bodySmall)
 
                                 HorizontalDivider()
 
