@@ -188,12 +188,15 @@ static void draw_strip(Canvas* canvas, ChatModel* m) {
     } else {
         int total = log->count;
         int last = total - 1 - (int)m->scroll;
-        for(int i = 0; i < 2; i++) {
-            int idx = last - 1 + i;
-            if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
-        }
-        if(m->busy && m->scroll == 0 && m->notice[0]) {
-            canvas_draw_str(canvas, 1, 15, m->notice);
+        bool thinking = m->busy && m->scroll == 0 && m->notice[0];
+        if(thinking) {
+            if(last >= 0) canvas_draw_str(canvas, 1, 7, log->lines[last]);
+            canvas_draw_str(canvas, 12, 15, m->notice);
+        } else {
+            for(int i = 0; i < 2; i++) {
+                int idx = last - 1 + i;
+                if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
+            }
         }
         if(last - 1 > 0) canvas_draw_str(canvas, 122, 7, "^");
         if(m->scroll > 0) canvas_draw_str(canvas, 122, 15, "v");
@@ -217,7 +220,7 @@ static void chat_draw(Canvas* canvas, void* model) {
     }
     for(int c = 0; c < 5; c++) {
         int x = ACTION_X[c];
-        int w = ACTION_X[c + 1] - x;
+        int w = ACTION_X[c + 1] - x - 1;
         bool sel = m->row == 3 && m->col == c;
         draw_cell(canvas, x, 55, w, sel);
         switch(c) {

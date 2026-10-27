@@ -46,6 +46,7 @@ Store* store_alloc(void) {
     st->storage = furi_record_open(RECORD_STORAGE);
     st->next_seq = 1;
     st->active = -1;
+    st->lang = 2;
     storage_simply_mkdir(st->storage, "/ext/apps_data");
     storage_common_migrate(st->storage, "/ext/apps_data/claude_bridge", APP_DATA_DIR);
     storage_simply_mkdir(st->storage, APP_DATA_DIR);
