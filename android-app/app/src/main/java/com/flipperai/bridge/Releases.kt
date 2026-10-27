@@ -16,7 +16,7 @@ data class ReleaseInfo(val tag: String, val prerelease: Boolean, val notes: Stri
 class ChecksumException(message: String) : Exception(message)
 
 object Releases {
-    const val REPO = "Nahida4479/Flipper-Claude"
+    const val REPO = "Nahida4479/Flipper-AI-Bridge"
     const val APK_NAME = "flipper-ai-bridge.apk"
     const val FAP_NAME = "ai_bridge.fap"
     const val SUMS_NAME = "SHA256SUMS"

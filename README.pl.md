@@ -178,4 +178,3 @@ Instalacja aplikacji na Flippera używa własnego protokołu RPC Flippera (proto
 - Aplikacje powstały bez dostępu do sprzętu, więc przetestuj je na swoich urządzeniach i zgłoś problemy.
 - Układ interfejsu Flippera (128x64 px) może wymagać drobnych poprawek po pierwszym teście.
 - Flipper AI Bridge to niezależny projekt społecznościowy, niepowiązany z Anthropic ani przez Anthropic niepopierany. „Claude” jest znakiem towarowym Anthropic i jest tu użyty wyłącznie do nazwania modeli udostępnianych przez API Anthropic.
-- Repozytorium na GitHubie nadal nazywa się `Flipper-Claude`. Możesz je zmienić w ustawieniach repozytorium (aktualizator w aplikacji podąża za przekierowaniem, ale potem zaktualizuj `REPO` w `Releases.kt`).

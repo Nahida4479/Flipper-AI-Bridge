@@ -178,4 +178,3 @@ Installing the Flipper app uses the Flipper's own protobuf RPC (storage service)
 - The apps were written without access to the hardware, so test them on your devices and report problems.
 - The Flipper UI layout (128x64 px) may need small adjustments after the first real test.
 - Flipper AI Bridge is an independent community project and is not affiliated with or endorsed by Anthropic. "Claude" is a trademark of Anthropic and is used here only to name the models that the Anthropic API provides.
-- The GitHub repository is still called `Flipper-Claude`. You can rename it in the repository settings (the in-app updater follows the redirect, but update `REPO` in `Releases.kt` afterwards).
