@@ -260,7 +260,7 @@ class MainActivity : ComponentActivity() {
                                     PressButton(
                                         enabled = !upd.appBusy,
                                         onClick = { AppModel.installApk(context) }
-                                    ) { Text("Download, verify and install") }
+                                    ) { Text("Download update") }
                                 }
                                 if (upd.appMessage.isNotEmpty()) Text(upd.appMessage, style = MaterialTheme.typography.bodySmall)
 
