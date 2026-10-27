@@ -2,6 +2,14 @@
 
 Zadawaj pytania AI z Flippera Zero. Flipper wysyła zapytania do pośrednika (twojego telefonu z Androidem). Flipper wysyła pytanie przez Bluetooth Low Energy lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
 
+<img src="./public/flipper-ai-banner.gif">
+
+<div align="center">
+<img src="https://img.shields.io/badge/FlipperAI-blue">
+<a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+<a href="https://github.com/Nahida4479/Flipper-AI-Bridge/releases"><img src="https://img.shields.io/github/v/release/Nahida4479/Flipper-AI-Bridge?include_prereleases" alt="Latest release"></a>
+</div>
+
 English version: [README.md](README.md)
 
 ## Funkcje
