@@ -163,7 +163,6 @@ class MainActivity : ComponentActivity() {
     private fun Screen() {
         val ui by BridgeState.state.collectAsState()
         val upd by AppModel.state.collectAsState()
-        val toast by AppModel.toast.collectAsState()
         var apiKey by remember { mutableStateOf("") }
         var apiKeySaved by remember { mutableStateOf(store.apiKey.isNotEmpty()) }
         var editingKey by remember { mutableStateOf(false) }
@@ -176,7 +175,6 @@ class MainActivity : ComponentActivity() {
         var effortMenu by remember { mutableStateOf(false) }
         var confirmFap by remember { mutableStateOf(false) }
         var permsOk by remember { mutableStateOf(hasPermissions()) }
-        var debugText by remember { mutableStateOf("") }
         var wasBle by remember { mutableStateOf(false) }
         var wasUsb by remember { mutableStateOf(false) }
         val context = LocalContext.current
@@ -191,12 +189,6 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(usbConnected) {
             if (usbConnected && !wasUsb) AppModel.showToast("Connected to Flipper over USB")
             wasUsb = usbConnected
-        }
-        LaunchedEffect(ui.running) {
-            while (true) {
-                debugText = TransportHub.ble?.debugLine() ?: ""
-                delay(1000)
-            }
         }
 
         LaunchedEffect(Unit) {
@@ -240,22 +232,20 @@ class MainActivity : ComponentActivity() {
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    item { Spacer(Modifier.height(28.dp)) }
-                    item {
-                        Appear {
+                    item(key = "top") { Spacer(Modifier.height(28.dp)) }
+                    item(key = "spacer") {
+                        Appear("title") {
                             Text("Flipper AI Bridge", style = MaterialTheme.typography.headlineMedium)
                         }
                     }
-                    item {
-                        Appear(60) {
+                    item(key = "title") {
+                        Appear("status", 60) {
                             SectionCard {
                                 Text(labeled("Service: ", if (ui.running) "running" else "stopped"))
                                 Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
                                 Text(labeled("USB: ", ui.usbStatus))
                                 if (ui.busy) Text("Asking the AI...")
-                                if (ui.running && debugText.isNotEmpty()) {
-                                    Text("Details: $debugText", style = MaterialTheme.typography.bodySmall)
-                                }
+                                if (ui.running) DebugDetails()
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (!permsOk) {
                                         PressButton(onClick = { launcher.launch(requiredPermissions()) }) {
@@ -278,7 +268,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item {
+                    item(key = "status") {
                         AnimatedVisibility(
                             visible = connected,
                             enter = expandVertically() + fadeIn(),
@@ -315,8 +305,8 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item {
-                        Appear(120) {
+                    item(key = "banner") {
+                        Appear("updates", 120) {
                             SectionCard {
                                 Text("Updates", style = MaterialTheme.typography.titleMedium)
                                 val fapLine = when (upd.fapState) {
@@ -390,8 +380,8 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item {
-                        Appear(180) {
+                    item(key = "updates") {
+                        Appear("api", 180) {
                             SectionCard {
                                 Text("Anthropic API", style = MaterialTheme.typography.titleMedium)
                                 if (apiKeySaved && !editingKey) {
@@ -480,13 +470,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item {
+                    item(key = "api") {
                         AnimatedVisibility(
                             visible = !connected,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
-                        Appear(240) {
+                        Appear("find", 240) {
                             SectionCard {
                                 Text("Find your Flipper", style = MaterialTheme.typography.titleMedium)
                                 Text(if (bleName.isEmpty()) "No Flipper selected" else "Selected: $bleName")
@@ -516,7 +506,7 @@ class MainActivity : ComponentActivity() {
                         }
                         }
                     }
-                    item {
+                    item(key = "find") {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -526,9 +516,9 @@ class MainActivity : ComponentActivity() {
                             TextButton(onClick = { BridgeState.clearLog() }) { Text("Clear") }
                         }
                     }
-                    items(ui.log) { entry ->
+                    items(ui.log, key = { it.question + it.answer.hashCode() }) { entry ->
                         Card(
-                            Modifier.fillMaxWidth().animateContentSize(),
+                            Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column(Modifier.padding(12.dp)) {
@@ -540,11 +530,23 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item { Spacer(Modifier.height(24.dp)) }
+                    item(key = "bottom") { Spacer(Modifier.height(24.dp)) }
                 }
-                ToastBanner(toast, Modifier.align(Alignment.TopCenter))
+                ToastBanner(AppModel.toast, Modifier.align(Alignment.TopCenter))
             }
         }
+    }
+
+    @Composable
+    private fun DebugDetails() {
+        var text by remember { mutableStateOf("") }
+        LaunchedEffect(Unit) {
+            while (true) {
+                text = TransportHub.ble?.debugLine() ?: ""
+                delay(1000)
+            }
+        }
+        if (text.isNotEmpty()) Text("Details: $text", style = MaterialTheme.typography.bodySmall)
     }
 
     @Composable

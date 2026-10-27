@@ -34,6 +34,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,10 +103,20 @@ fun PressButton(
     }
 }
 
+private val appeared = HashSet<String>()
+
 @Composable
-fun Appear(delayMs: Int = 0, content: @Composable () -> Unit) {
+fun Appear(key: String, delayMs: Int = 0, content: @Composable () -> Unit) {
+    val already = remember { key in appeared }
+    if (already) {
+        content()
+        return
+    }
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
+    LaunchedEffect(Unit) {
+        visible = true
+        appeared.add(key)
+    }
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(380, delayMillis = delayMs)) +
@@ -116,7 +127,8 @@ fun Appear(delayMs: Int = 0, content: @Composable () -> Unit) {
 }
 
 @Composable
-fun ToastBanner(message: String?, modifier: Modifier = Modifier) {
+fun ToastBanner(flow: kotlinx.coroutines.flow.StateFlow<String?>, modifier: Modifier = Modifier) {
+    val message by flow.collectAsState()
     var shown by remember { mutableStateOf("") }
     LaunchedEffect(message) { if (message != null) shown = message }
     Box(modifier = modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
