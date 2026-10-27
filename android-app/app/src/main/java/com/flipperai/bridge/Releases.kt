@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,8 +17,8 @@ class ChecksumException(message: String) : Exception(message)
 
 object Releases {
     const val REPO = "Nahida4479/Flipper-Claude"
-    const val APK_NAME = "flipper-claude-bridge.apk"
-    const val FAP_NAME = "claude_bridge.fap"
+    const val APK_NAME = "flipper-ai-bridge.apk"
+    const val FAP_NAME = "ai_bridge.fap"
     const val SUMS_NAME = "SHA256SUMS"
     private const val MAX_BYTES = 40L * 1024 * 1024
 
@@ -28,7 +28,7 @@ object Releases {
         conn.readTimeout = 60000
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("Accept", "application/vnd.github+json")
-        conn.setRequestProperty("User-Agent", "FlipperClaudeBridge")
+        conn.setRequestProperty("User-Agent", "FlipperAiBridge")
         return conn
     }
 

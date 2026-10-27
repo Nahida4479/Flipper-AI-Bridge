@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -7,20 +7,20 @@ import java.net.URL
 
 data class ChatTurn(val role: String, val text: String)
 
-class ClaudeException(message: String) : Exception(message)
+class ApiException(message: String) : Exception(message)
 
-class ClaudeClient(private val store: SecureStore) {
+class ApiClient(private val store: SecureStore) {
 
     fun ask(history: List<ChatTurn>, lang: String): String {
         val key = store.apiKey
-        if (key.isEmpty()) throw ClaudeException("API key not set in phone app")
+        if (key.isEmpty()) throw ApiException("API key not set in phone app")
         val messages = JSONArray()
         for (turn in normalize(history)) {
             messages.put(
                 JSONObject().put("role", turn.role).put("content", turn.text)
             )
         }
-        if (messages.length() == 0) throw ClaudeException("Empty question")
+        if (messages.length() == 0) throw ApiException("Empty question")
         val body = JSONObject()
             .put("model", store.model)
             .put("max_tokens", MAX_TOKENS)
@@ -41,7 +41,7 @@ class ClaudeClient(private val store: SecureStore) {
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-            if (code !in 200..299) throw ClaudeException(errorMessage(code, text))
+            if (code !in 200..299) throw ApiException(errorMessage(code, text))
             return extractText(text)
         } finally {
             conn.disconnect()
@@ -76,7 +76,7 @@ class ClaudeClient(private val store: SecureStore) {
     private fun extractText(json: String): String {
         val root = JSONObject(json)
         if (root.optString("stop_reason") == "refusal") {
-            throw ClaudeException("Request declined by safety filter")
+            throw ApiException("Request declined by safety filter")
         }
         val content = root.optJSONArray("content") ?: return ""
         val sb = StringBuilder()

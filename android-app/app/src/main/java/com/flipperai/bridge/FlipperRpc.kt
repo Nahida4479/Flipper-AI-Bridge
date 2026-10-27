@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ArrayBlockingQueue

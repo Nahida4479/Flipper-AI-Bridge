@@ -2,8 +2,8 @@
 
 #include <storage/storage.h>
 
-#define APP_ASSETS_DIR "/ext/apps_assets/claude_bridge"
-#define APP_DATA_DIR   "/ext/apps_data/claude_bridge"
+#define APP_ASSETS_DIR "/ext/apps_assets/ai_bridge"
+#define APP_DATA_DIR   "/ext/apps_data/ai_bridge"
 #define LEARNED_PATH   APP_DATA_DIR "/learned.txt"
 #define SETTINGS_PATH  APP_DATA_DIR "/settings.txt"
 #define META_PATH      APP_DATA_DIR "/chats.txt"

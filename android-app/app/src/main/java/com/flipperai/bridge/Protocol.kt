@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 object Protocol {
     const val MAX_CHUNK_BYTES = 120

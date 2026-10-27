@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -22,7 +22,7 @@ class BridgeService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var store: SecureStore
-    private lateinit var client: ClaudeClient
+    private lateinit var client: ApiClient
     private var ble: BleTransport? = null
     private var usb: UsbTransport? = null
     private var job: Job? = null
@@ -35,7 +35,7 @@ class BridgeService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = SecureStore(this)
-        client = ClaudeClient(store)
+        client = ApiClient(store)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -104,7 +104,7 @@ class BridgeService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Flipper Claude Bridge")
+            .setContentTitle("Flipper AI Bridge")
             .setContentText("Bluetooth: $bleStatus  |  USB: $usbStatus")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -164,7 +164,7 @@ class BridgeService : Service() {
         job?.cancel()
         job = scope.launch {
             BridgeState.update { it.copy(busy = true) }
-            source.send("S:Claude is thinking...")
+            source.send("S:Thinking...")
             try {
                 val answer = client.ask(snapshot, lang).ifEmpty { "(empty answer)" }
                 synchronized(history) { history.add(ChatTurn("assistant", answer)) }
@@ -186,9 +186,9 @@ class BridgeService : Service() {
     companion object {
         private const val CHANNEL_ID = "bridge"
         private const val NOTIFICATION_ID = 7
-        const val ACTION_STOP = "com.flipperclaude.bridge.STOP"
-        const val ACTION_RESTART_BLE = "com.flipperclaude.bridge.RESTART_BLE"
-        const val ACTION_RESCAN_USB = "com.flipperclaude.bridge.RESCAN_USB"
+        const val ACTION_STOP = "com.flipperai.bridge.STOP"
+        const val ACTION_RESTART_BLE = "com.flipperai.bridge.RESTART_BLE"
+        const val ACTION_RESCAN_USB = "com.flipperai.bridge.RESCAN_USB"
 
         fun start(context: Context, action: String? = null) {
             val intent = Intent(context, BridgeService::class.java)

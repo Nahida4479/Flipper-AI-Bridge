@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter

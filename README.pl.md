@@ -1,6 +1,6 @@
-# Flipper Claude Bridge
+# Flipper AI Bridge
 
-Zadawaj pytania Claude'owi z Flippera Zero. Flipper nie ma Wi-Fi, więc pośrednikiem jest telefon z Androidem: Flipper wysyła pytanie przez Bluetooth Low Energy (BLE) lub USB, telefon pyta API Claude'a i odsyła odpowiedź na ekran Flippera.
+Zadawaj pytania AI z Flippera Zero. Flipper nie ma Wi-Fi, więc pośrednikiem jest telefon z Androidem: Flipper wysyła pytanie przez Bluetooth Low Energy (BLE) lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
 
 English version: [README.md](README.md)
 
@@ -18,8 +18,8 @@ English version: [README.md](README.md)
 
 ```mermaid
 flowchart LR
-    F["Flipper Zero<br/>aplikacja Claude Bridge"] <-->|"USB (priorytet)<br/>albo BLE"| P["Telefon z Androidem<br/>usługa w tle"]
-    P -->|HTTPS| A[("API Claude")]
+    F["Flipper Zero<br/>aplikacja AI Bridge"] <-->|"USB (priorytet)<br/>albo BLE"| P["Telefon z Androidem<br/>usługa w tle"]
+    P -->|HTTPS| A[("API Anthropic")]
     A -->|odpowiedź| P
 ```
 
@@ -33,7 +33,7 @@ flowchart TD
     D --> E{Kabel USB<br/>podłączony do telefonu?}
     E -- tak --> F[Wysyłanie przez USB]
     E -- nie --> G[Wysyłanie przez Bluetooth LE]
-    F --> H[Telefon: zapytanie do API Claude<br/>z historią czatu]
+    F --> H[Telefon: zapytanie do API Anthropic<br/>z historią czatu]
     G --> H
     H --> I{Odpowiedź ok?}
     I -- tak --> J["Odpowiedź w krótkich kawałkach<br/>na ekranie Flippera"]
@@ -82,8 +82,8 @@ flowchart TD
     C -- nie --> X([Stop: nic nie zmieniono])
     C -- tak --> D[Otwórz RPC Flippera przez USB lub BLE]
     D --> E{Flipper odpowiada?}
-    E -- nie --> Y([Zamknij Claude Bridge na Flipperze i spróbuj ponownie])
-    E -- tak --> F{claude_bridge.fap<br/>już jest na karcie SD?}
+    E -- nie --> Y([Zamknij AI Bridge na Flipperze i spróbuj ponownie])
+    E -- tak --> F{ai_bridge.fap<br/>już jest na karcie SD?}
     F -- tak --> G[Wgraj obok jako .new]
     F -- nie --> H[Utwórz /ext/apps/Tools] --> G
     G --> I{MD5 wgranego pliku<br/>zgodne?}
@@ -98,7 +98,7 @@ flowchart TD
 | --- | --- |
 | `flipper-app/` | Aplikacja na Flippera Zero (C, `ufbt`) |
 | `android-app/` | Aplikacja na Androida (Kotlin, Jetpack Compose) |
-| `release/` | Gotowy `claude_bridge.fap` |
+| `release/` | Gotowy `ai_bridge.fap` |
 | `tools/` | Generator słowników i skrypt klucza podpisu |
 | `.github/workflows/` | CI budujące APK i `.fap` oraz publikujące wydania |
 
@@ -106,11 +106,11 @@ Gałęzie: `main` to wersja stabilna, `beta` dostaje nowe zmiany do testów.
 
 ## Instalacja
 
-1. Pobierz `flipper-claude-bridge.apk` ze strony [Releases](../../releases) i zainstaluj w telefonie. Zezwól na instalację z tego źródła, jeśli system zapyta.
-2. Otwórz aplikację w telefonie, nadaj uprawnienia, wpisz klucz API Claude'a i naciśnij `Start`.
+1. Pobierz `flipper-ai-bridge.apk` ze strony [Releases](../../releases) i zainstaluj w telefonie. Zezwól na instalację z tego źródła, jeśli system zapyta.
+2. Otwórz aplikację w telefonie, nadaj uprawnienia, wpisz klucz API Anthropic i naciśnij `Start`.
 3. Wgraj aplikację na Flippera na jeden z dwóch sposobów:
-   - w aplikacji w telefonie naciśnij `Install on Flipper` (Flipper połączony przez USB lub Bluetooth, Claude Bridge nie uruchomiony na Flipperze), albo
-   - skopiuj `claude_bridge.fap` do `SD:/apps/<folder>/` przez qFlipper lub lab.flipper.net. Słowniki są wbudowane w `.fap` i Flipper rozpakowuje je przy pierwszym starcie.
+   - w aplikacji w telefonie naciśnij `Install on Flipper` (Flipper połączony przez USB lub Bluetooth, AI Bridge nie uruchomiony na Flipperze), albo
+   - skopiuj `ai_bridge.fap` do `SD:/apps/<folder>/` przez qFlipper lub lab.flipper.net. Słowniki są wbudowane w `.fap` i Flipper rozpakowuje je przy pierwszym starcie.
 4. Bluetooth: w telefonie naciśnij `Scan for Flipper` i wybierz Flippera (lista zawiera też sparowane urządzenia). Flipper już połączony z telefonem się nie reklamuje, więc widać go tylko na liście sparowanych. Zaakceptuj PIN parowania.
 5. USB: podłącz Flippera do telefonu (OTG). Zaakceptuj uprawnienie USB jednorazowo.
 6. Na Flipperze uruchom aplikację i wybierz `Chat`.
@@ -125,11 +125,11 @@ Gałęzie: `main` to wersja stabilna, `beta` dostaje nowe zmiany do testów.
 | Back | Kasowanie znaku. Przy pustym polu: powrót do menu |
 | Przytrzymaj Back | Powrót do menu |
 
-Dolny rząd klawiatury: warstwa (`abc`, `ABC` na jedną literę, `PL1` polskie litery, cyfry i symbole), `Del`, `Space`, `Tab` (przyjmij podpowiedź), `Send`. Czcionka Flippera nie ma polskich liter, więc na ekranie są bez ogonków, ale do Claude'a trafia tekst z nimi.
+Dolny rząd klawiatury: warstwa (`abc`, `ABC` na jedną literę, `PL1` polskie litery, cyfry i symbole), `Del`, `Space`, `Tab` (przyjmij podpowiedź), `Send`. Czcionka Flippera nie ma polskich liter, więc na ekranie są bez ogonków, ale do AI trafia tekst z nimi.
 
 ### Język
 
-Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interfejsu, więc język podpowiedzi ustawia się w aplikacji (`Settings -> Hints language`). Domyślnie angielski. Interfejs aplikacji jest po angielsku. Claude odpowiada po polsku lub angielsku (w języku pytania), a przy innych językach po angielsku.
+Oficjalny firmware Flippera nie udostępnia aplikacjom ustawienia języka interfejsu, więc język podpowiedzi ustawia się w aplikacji (`Settings -> Hints language`). Domyślnie angielski. Interfejs aplikacji jest po angielsku. AI odpowiada po polsku lub angielsku (w języku pytania), a przy innych językach po angielsku.
 
 ## Aktualizacje i sumy kontrolne
 
@@ -158,7 +158,7 @@ Oba łącza przesyłają jedną wiadomość UTF-8 na linię (`\n` w tekście zap
 | Telefon do Flippera | `H` | Hello, aplikacja w telefonie jest |
 | Flipper do telefonu | `P` | Ping, odpowiedź to `H` |
 | Flipper do telefonu | `N` | Nowa rozmowa |
-| Flipper do telefonu | `U:<tekst>` / `B:<tekst>` | Wcześniejsza wiadomość użytkownika / Claude'a (odtworzenie kontekstu po wznowieniu czatu) |
+| Flipper do telefonu | `U:<tekst>` / `B:<tekst>` | Wcześniejsza wiadomość użytkownika / AI (odtworzenie kontekstu po wznowieniu czatu) |
 | Flipper do telefonu | `Q:<lang>:<tekst>` | Pytanie (`lang` to `en`, `pl` albo `both`) |
 | Telefon do Flippera | `S:<tekst>` | Status |
 | Telefon do Flippera | `A:<kawałek>` | Część odpowiedzi |
@@ -177,4 +177,5 @@ Instalacja aplikacji na Flippera używa własnego protokołu RPC Flippera (proto
 
 - Aplikacje powstały bez dostępu do sprzętu, więc przetestuj je na swoich urządzeniach i zgłoś problemy.
 - Układ interfejsu Flippera (128x64 px) może wymagać drobnych poprawek po pierwszym teście.
-- Nazwa: obecna nazwa projektu zawiera „Claude”. To znak towarowy Anthropic, więc nazwa może się zmienić.
+- Flipper AI Bridge to niezależny projekt społecznościowy, niepowiązany z Anthropic ani przez Anthropic niepopierany. „Claude” jest znakiem towarowym Anthropic i jest tu użyty wyłącznie do nazwania modeli udostępnianych przez API Anthropic.
+- Repozytorium na GitHubie nadal nazywa się `Flipper-Claude`. Możesz je zmienić w ustawieniach repozytorium (aktualizator w aplikacji podąża za przekierowaniem, ale potem zaktualizuj `REPO` w `Releases.kt`).

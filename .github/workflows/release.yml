@@ -48,7 +48,7 @@ jobs:
       - name: Collect
         run: |
           mkdir out
-          cp android-app/app/build/outputs/apk/debug/*.apk out/flipper-claude-bridge.apk
+          cp android-app/app/build/outputs/apk/debug/*.apk out/flipper-ai-bridge.apk
       - uses: actions/upload-artifact@v4
         with:
           name: apk
@@ -66,8 +66,8 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out
-          FAP=$(find . -name claude_bridge.fap -not -path "./release/*" | head -n 1)
-          cp "$FAP" out/claude_bridge.fap
+          FAP=$(find . -name ai_bridge.fap -not -path "./release/*" | head -n 1)
+          cp "$FAP" out/ai_bridge.fap
       - uses: actions/upload-artifact@v4
         with:
           name: fap
@@ -83,7 +83,7 @@ jobs:
           merge-multiple: true
       - name: Create checksums
         working-directory: assets
-        run: sha256sum flipper-claude-bridge.apk claude_bridge.fap > SHA256SUMS
+        run: sha256sum flipper-ai-bridge.apk ai_bridge.fap > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}

@@ -466,7 +466,7 @@ static void handle_send(App* app) {
             m->suggestion[0] = 0;
             m->scroll = 0;
             m->busy = true;
-            snprintf(m->notice, sizeof(m->notice), "Claude is thinking...");
+            snprintf(m->notice, sizeof(m->notice), "Thinking...");
         },
         true);
 }
@@ -576,7 +576,7 @@ static void show_info(App* app) {
     FuriString* text = furi_string_alloc();
     furi_string_printf(
         text,
-        "\e#Claude Bridge\n\e*Link:\e* %s\n"
+        "\e#AI Bridge\n\e*Link:\e* %s\n"
         "1. Install the Android app\n"
         "2. Pair it with this Flipper (Bluetooth) or plug in USB\n"
         "3. USB is used automatically when connected\n\n"
@@ -603,7 +603,7 @@ static void menu_draw(Canvas* canvas, void* model) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 9, "Claude Bridge");
+    canvas_draw_str(canvas, 2, 9, "AI Bridge");
     canvas_set_font(canvas, FontSecondary);
     if(m->ready) {
         canvas_draw_str_aligned(canvas, 126, 1, AlignRight, AlignTop, m->kind == LinkKindUsb ? "USB" : "BLE");
@@ -798,7 +798,7 @@ static int32_t init_worker(void* context) {
     return 0;
 }
 
-int32_t claude_bridge_app(void* p) {
+int32_t ai_bridge_app(void* p) {
     UNUSED(p);
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
@@ -849,7 +849,7 @@ int32_t claude_bridge_app(void* p) {
     view_dispatcher_attach_to_gui(app->dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
     app->link = link_alloc(link_notify, app);
-    app->init_thread = furi_thread_alloc_ex("ClaudeInit", 3072, init_worker, app);
+    app->init_thread = furi_thread_alloc_ex("AiInit", 3072, init_worker, app);
     furi_thread_start(app->init_thread);
 
     app->current = ViewMenu;

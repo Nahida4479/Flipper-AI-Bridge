@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.app.PendingIntent
 import android.content.Context
@@ -31,7 +31,7 @@ object AppModel {
     val state = MutableStateFlow(UpdateUi())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var release: ReleaseInfo? = null
-    const val INSTALL_ACTION = "com.flipperclaude.bridge.INSTALL_RESULT"
+    const val INSTALL_ACTION = "com.flipperai.bridge.INSTALL_RESULT"
     private const val FAP_DIR = "/ext/apps/Tools"
 
     fun reportInstall(message: String) = state.update { it.copy(appBusy = false, appProgress = -1, appMessage = message) }
@@ -148,7 +148,7 @@ object AppModel {
                 rpc = client
                 client.open(startCli = transport is UsbTransport)
                 if (!client.ping()) {
-                    throw RpcException("Flipper does not answer. Close Claude Bridge on the Flipper and try again")
+                    throw RpcException("Flipper does not answer. Close AI Bridge on the Flipper and try again")
                 }
                 val existing = findExisting(client)
                 val target = existing ?: "$FAP_DIR/${Releases.FAP_NAME}"

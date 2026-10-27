@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -176,7 +176,7 @@ class MainActivity : ComponentActivity() {
         ) {
             item { Spacer(Modifier.height(28.dp)) }
             item {
-                Text("Flipper Claude Bridge", style = MaterialTheme.typography.headlineSmall)
+                Text("Flipper AI Bridge", style = MaterialTheme.typography.headlineSmall)
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -184,7 +184,7 @@ class MainActivity : ComponentActivity() {
                         Text(labeled("Service: ", if (ui.running) "running" else "stopped"))
                         Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
                         Text(labeled("USB: ", ui.usbStatus))
-                        if (ui.busy) Text("Asking Claude...")
+                        if (ui.busy) Text("Asking the AI...")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (!permsOk) {
                                 Button(onClick = { launcher.launch(requiredPermissions()) }) {
@@ -238,7 +238,7 @@ class MainActivity : ComponentActivity() {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Claude API", style = MaterialTheme.typography.titleMedium)
+                        Text("Anthropic API", style = MaterialTheme.typography.titleMedium)
                         if (apiKeySaved && !editingKey) {
                             Text(labeled("API key: ", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -356,7 +356,7 @@ class MainActivity : ComponentActivity() {
                             onClick = { AppModel.installFap(context) }
                         ) { Text(if (upd.fapUpdate && upd.fapStatus.startsWith("Update")) "Update on Flipper" else "Install on Flipper") }
                         Text(
-                            "Start the service first and connect the Flipper. Close Claude Bridge on the Flipper before installing. Chats and settings on the Flipper are kept.",
+                            "Start the service first and connect the Flipper. Close AI Bridge on the Flipper before installing. Chats and settings on the Flipper are kept.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }

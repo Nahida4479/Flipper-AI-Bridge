@@ -159,7 +159,7 @@ Link* link_alloc(LinkNotify notify_cb, void* context) {
     link->context = context;
     link->ble_rx = furi_stream_buffer_alloc(BLE_RX_BUFFER, 1);
     link->queue = furi_message_queue_alloc(8, sizeof(LinkMsg));
-    link->thread = furi_thread_alloc_ex("ClaudeLink", 1536, link_worker, link);
+    link->thread = furi_thread_alloc_ex("AiLink", 1536, link_worker, link);
     furi_thread_start(link->thread);
     return link;
 }

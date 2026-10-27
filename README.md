@@ -1,6 +1,6 @@
-# Flipper Claude Bridge
+# Flipper AI Bridge
 
-Ask Claude from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth Low Energy (BLE) or USB, the phone asks the Claude API and sends the answer back to the Flipper screen.
+Ask an AI from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth Low Energy (BLE) or USB, the phone asks the Anthropic API (Claude models) and sends the answer back to the Flipper screen.
 
 Polish version: [README.pl.md](README.pl.md)
 
@@ -18,8 +18,8 @@ Polish version: [README.pl.md](README.pl.md)
 
 ```mermaid
 flowchart LR
-    F["Flipper Zero<br/>Claude Bridge app"] <-->|"USB (priority)<br/>or BLE"| P["Android phone<br/>background service"]
-    P -->|HTTPS| A[("Claude API")]
+    F["Flipper Zero<br/>AI Bridge app"] <-->|"USB (priority)<br/>or BLE"| P["Android phone<br/>background service"]
+    P -->|HTTPS| A[("Anthropic API")]
     A -->|answer| P
 ```
 
@@ -33,7 +33,7 @@ flowchart TD
     D --> E{USB cable<br/>connected to phone?}
     E -- yes --> F[Send over USB]
     E -- no --> G[Send over Bluetooth LE]
-    F --> H[Phone: Claude API request<br/>with chat history]
+    F --> H[Phone: Anthropic API request<br/>with chat history]
     G --> H
     H --> I{Answer ok?}
     I -- yes --> J["Answer sent in short chunks<br/>and shown on the Flipper"]
@@ -82,8 +82,8 @@ flowchart TD
     C -- no --> X([Stop: nothing is changed])
     C -- yes --> D[Open Flipper RPC over USB or BLE]
     D --> E{Flipper answers?}
-    E -- no --> Y([Close Claude Bridge on the Flipper, retry])
-    E -- yes --> F{claude_bridge.fap<br/>already on the SD card?}
+    E -- no --> Y([Close AI Bridge on the Flipper, retry])
+    E -- yes --> F{ai_bridge.fap<br/>already on the SD card?}
     F -- yes --> G[Upload next to it as .new]
     F -- no --> H[Create /ext/apps/Tools] --> G
     G --> I{MD5 of the upload<br/>matches?}
@@ -98,7 +98,7 @@ flowchart TD
 | --- | --- |
 | `flipper-app/` | Flipper Zero app (C, `ufbt`) |
 | `android-app/` | Android app (Kotlin, Jetpack Compose) |
-| `release/` | Prebuilt `claude_bridge.fap` |
+| `release/` | Prebuilt `ai_bridge.fap` |
 | `tools/` | Dictionary generator and signing key helper |
 | `.github/workflows/` | CI that builds the APK and the `.fap`, and publishes releases |
 
@@ -106,11 +106,11 @@ Branches: `main` is stable, `beta` receives new changes for testing.
 
 ## Install
 
-1. Download `flipper-claude-bridge.apk` from the [Releases](../../releases) page and install it on the phone. Allow installing from this source if asked.
-2. Open the phone app, grant the permissions, enter your Claude API key, press `Start`.
+1. Download `flipper-ai-bridge.apk` from the [Releases](../../releases) page and install it on the phone. Allow installing from this source if asked.
+2. Open the phone app, grant the permissions, enter your Anthropic API key, press `Start`.
 3. Put the Flipper app on the Flipper, either:
-   - in the phone app press `Install on Flipper` (Flipper connected over USB or Bluetooth, Claude Bridge not running on the Flipper), or
-   - copy `claude_bridge.fap` to `SD:/apps/<folder>/` with qFlipper or lab.flipper.net. The dictionaries are bundled inside the `.fap` and unpacked by the Flipper at the first start.
+   - in the phone app press `Install on Flipper` (Flipper connected over USB or Bluetooth, AI Bridge not running on the Flipper), or
+   - copy `ai_bridge.fap` to `SD:/apps/<folder>/` with qFlipper or lab.flipper.net. The dictionaries are bundled inside the `.fap` and unpacked by the Flipper at the first start.
 4. Bluetooth: in the phone app press `Scan for Flipper` and pick your Flipper (paired devices are listed too). A Flipper already connected to the phone does not advertise, so it only shows up in the paired list. Accept the pairing PIN.
 5. USB: plug the Flipper into the phone (OTG). Accept the USB permission once.
 6. On the Flipper open the app and choose `Chat`.
@@ -125,11 +125,11 @@ Branches: `main` is stable, `beta` receives new changes for testing.
 | Back | Delete a character. When the input is empty: back to the menu |
 | Hold Back | Back to the menu |
 
-Bottom keyboard row: layer (`abc`, `ABC` for one letter, `PL1` for Polish letters, digits and symbols), `Del`, `Space`, `Tab` (accept hint), `Send`. The Flipper font has no Polish letters, so they are shown without accents on the screen, but the text sent to Claude keeps them.
+Bottom keyboard row: layer (`abc`, `ABC` for one letter, `PL1` for Polish letters, digits and symbols), `Del`, `Space`, `Tab` (accept hint), `Send`. The Flipper font has no Polish letters, so they are shown without accents on the screen, but the text sent to the AI keeps them.
 
 ### Language
 
-The official Flipper firmware has no interface language setting that apps can read, so the hint language is set in the app (`Settings -> Hints language`). The default is English. The app interface is in English. Claude answers in Polish or English (the language you write in) and in English for any other language.
+The official Flipper firmware has no interface language setting that apps can read, so the hint language is set in the app (`Settings -> Hints language`). The default is English. The app interface is in English. The AI answers in Polish or English (the language you write in) and in English for any other language.
 
 ## Updates and checksums
 
@@ -158,7 +158,7 @@ Both links carry one UTF-8 message per line (`\n` inside text is written as `\\n
 | Phone to Flipper | `H` | Hello, the phone app is here |
 | Flipper to phone | `P` | Ping, answered with `H` |
 | Flipper to phone | `N` | New conversation |
-| Flipper to phone | `U:<text>` / `B:<text>` | Earlier user / Claude message (context replay when a saved chat is resumed) |
+| Flipper to phone | `U:<text>` / `B:<text>` | Earlier user / AI message (context replay when a saved chat is resumed) |
 | Flipper to phone | `Q:<lang>:<text>` | Question (`lang` is `en`, `pl` or `both`) |
 | Phone to Flipper | `S:<text>` | Status |
 | Phone to Flipper | `A:<chunk>` | Part of the answer |
@@ -177,4 +177,5 @@ Installing the Flipper app uses the Flipper's own protobuf RPC (storage service)
 
 - The apps were written without access to the hardware, so test them on your devices and report problems.
 - The Flipper UI layout (128x64 px) may need small adjustments after the first real test.
-- Naming: the project name currently contains "Claude". Anthropic owns that trademark, so the name may change.
+- Flipper AI Bridge is an independent community project and is not affiliated with or endorsed by Anthropic. "Claude" is a trademark of Anthropic and is used here only to name the models that the Anthropic API provides.
+- The GitHub repository is still called `Flipper-Claude`. You can rename it in the repository settings (the in-app updater follows the redirect, but update `REPO` in `Releases.kt` afterwards).

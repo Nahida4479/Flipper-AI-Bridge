@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -229,6 +229,6 @@ class UsbTransport(
     companion object {
         const val VID = 0x0483
         const val PID = 0x5740
-        private const val ACTION_PERMISSION = "com.flipperclaude.bridge.USB_PERMISSION"
+        private const val ACTION_PERMISSION = "com.flipperai.bridge.USB_PERMISSION"
     }
 }

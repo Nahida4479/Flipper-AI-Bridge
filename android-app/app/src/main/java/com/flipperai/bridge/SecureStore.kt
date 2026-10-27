@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -100,7 +100,7 @@ class SecureStore(context: Context) {
         private const val EFFORT = "effort"
         private const val BETA_UPDATES = "beta_updates"
         private const val FAP_SHA = "flipper_fap_sha"
-        private const val KEY_ALIAS = "flipper_claude_bridge_key"
+        private const val KEY_ALIAS = "flipper_ai_bridge_key"
         private const val TRANSFORM = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12
         private const val API_KEY = "api_key"

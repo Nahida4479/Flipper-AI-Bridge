@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.flipperclaude.bridge"
+    namespace = "com.flipperai.bridge"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.flipperclaude.bridge"
+        applicationId = "com.flipperai.bridge"
         minSdk = 26
         targetSdk = 34
         versionCode = (project.findProperty("appVersionCode") as String?)?.toInt() ?: 1
