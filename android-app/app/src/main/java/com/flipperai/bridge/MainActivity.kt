@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -277,31 +278,35 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Text(labeled("Model: ", MODEL_NAMES[model] ?: model))
-                        OutlinedButton(onClick = { modelMenu = true }) { Text("Pick a model") }
-                        DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                            SecureStore.MODEL_IDS.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(MODEL_NAMES[m] ?: m) },
-                                    onClick = {
-                                        model = m
-                                        store.model = m
-                                        modelMenu = false
-                                    }
-                                )
+                        Box {
+                            OutlinedButton(onClick = { modelMenu = true }) { Text("Pick a model") }
+                            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                                SecureStore.MODEL_IDS.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(MODEL_NAMES[m] ?: m) },
+                                        onClick = {
+                                            model = m
+                                            store.model = m
+                                            modelMenu = false
+                                        }
+                                    )
+                                }
                             }
                         }
                         Text(labeled("Effort: ", effort.replaceFirstChar { it.uppercase() }))
-                        OutlinedButton(onClick = { effortMenu = true }) { Text("Pick effort") }
-                        DropdownMenu(expanded = effortMenu, onDismissRequest = { effortMenu = false }) {
-                            SecureStore.EFFORTS.forEach { e ->
-                                DropdownMenuItem(
-                                    text = { Text(e.replaceFirstChar { it.uppercase() }) },
-                                    onClick = {
-                                        effort = e
-                                        store.effort = e
-                                        effortMenu = false
-                                    }
-                                )
+                        Box {
+                            OutlinedButton(onClick = { effortMenu = true }) { Text("Pick effort") }
+                            DropdownMenu(expanded = effortMenu, onDismissRequest = { effortMenu = false }) {
+                                SecureStore.EFFORTS.forEach { e ->
+                                    DropdownMenuItem(
+                                        text = { Text(e.replaceFirstChar { it.uppercase() }) },
+                                        onClick = {
+                                            effort = e
+                                            store.effort = e
+                                            effortMenu = false
+                                        }
+                                    )
+                                }
                             }
                         }
                         Text("Lower effort answers faster and cheaper.", style = MaterialTheme.typography.bodySmall)

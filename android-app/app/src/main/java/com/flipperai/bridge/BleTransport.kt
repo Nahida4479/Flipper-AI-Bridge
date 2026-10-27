@@ -131,12 +131,18 @@ class BleTransport(
                 onStatus("Notifications unavailable")
                 return
             }
+            val indicate = (tx.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+            val enable = if (indicate) {
+                BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            } else {
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            }
             if (Build.VERSION.SDK_INT >= 33) {
-                g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                g.writeDescriptor(cccd, enable)
             } else {
                 @Suppress("DEPRECATION")
                 run {
-                    cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    cccd.value = enable
                     g.writeDescriptor(cccd)
                 }
             }

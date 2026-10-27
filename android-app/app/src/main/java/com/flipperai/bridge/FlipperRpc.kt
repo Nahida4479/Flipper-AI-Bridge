@@ -123,11 +123,8 @@ class FlipperRpc(private val transport: Transport) {
         return await(id, timeoutMs)
     }
 
-    fun ping(): Boolean = try {
-        call(5, Pb.bytes(1, byteArrayOf(1, 2, 3)), 4000)
-        true
-    } catch (e: RpcException) {
-        false
+    fun ping() {
+        call(5, Pb.bytes(1, byteArrayOf(1, 2, 3)), 5000)
     }
 
     fun list(path: String): List<Pair<String, Boolean>> {

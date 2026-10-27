@@ -148,8 +148,12 @@ object AppModel {
                 val client = FlipperRpc(transport)
                 rpc = client
                 client.open(startCli = transport is UsbTransport)
-                if (!client.ping()) {
-                    throw RpcException("Flipper does not answer. Close AI Bridge on the Flipper and try again")
+                try {
+                    client.ping()
+                } catch (e: RpcException) {
+                    throw RpcException(
+                        "Flipper does not answer (${e.message}). Close AI Bridge on the Flipper, check the connection and try again"
+                    )
                 }
                 val existing = findExisting(client)
                 val dir = existing?.dir ?: FAP_DIR
