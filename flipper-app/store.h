@@ -19,3 +19,7 @@ bool store_has_chat(Store* st);
 void store_new_chat(Store* st);
 void store_append(Store* st, char role, const char* text);
 void store_load_chat(Store* st, ChatLog* log);
+int store_chat_count(Store* st);
+bool store_slot_used(Store* st, int slot);
+void store_open_slot(Store* st, int slot);
+void store_last_question(Store* st, int slot, char* out, size_t cap);

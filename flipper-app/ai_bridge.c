@@ -2,15 +2,15 @@
 #include <gui/gui.h>
 #include <gui/view.h>
 #include <gui/view_dispatcher.h>
-#include <gui/modules/submenu.h>
 #include <gui/modules/variable_item_list.h>
 #include <gui/modules/widget.h>
 #include <gui/modules/dialog_ex.h>
+#include <gui/modules/submenu.h>
 #include <string.h>
 #include <stdio.h>
 
+#include "app_version.h"
 #include "chatlog.h"
-#include "dictpack.h"
 #include "link.h"
 #include "paths.h"
 #include "store.h"
@@ -19,7 +19,7 @@
 
 #define INPUT_MAX   160
 #define SUGGEST_MAX 64
-#define BUSY_TIMEOUT_TICKS 240
+#define BUSY_TIMEOUT_TICKS 360
 
 typedef enum {
     ViewMenu,
@@ -27,6 +27,7 @@ typedef enum {
     ViewSettings,
     ViewInfo,
     ViewConfirm,
+    ViewPicker,
 } ViewId;
 
 typedef enum {
@@ -50,6 +51,7 @@ typedef struct {
     int8_t col;
     uint8_t layer;
     uint16_t scroll;
+    bool full;
     bool busy;
     bool dict_ok;
     LinkKind link;
@@ -57,13 +59,24 @@ typedef struct {
 } ChatModel;
 
 typedef struct {
+    uint8_t selected;
+    bool ready;
+    bool linked;
+    bool starting;
+    LinkKind kind;
+} MenuModel;
+
+typedef struct {
     Gui* gui;
     ViewDispatcher* dispatcher;
-    Submenu* menu;
+    View* menu_view;
+    FuriThread* init_thread;
+    uint8_t ping_ticks;
     View* chat_view;
     VariableItemList* settings;
     Widget* info;
     DialogEx* confirm;
+    Submenu* picker;
     Store* store;
     Suggest* suggest;
     ChatLog* log;
@@ -73,6 +86,7 @@ typedef struct {
     bool synced;
     bool busy;
     uint16_t busy_ticks;
+    bool link_lost;
 } App;
 
 static const uint16_t KEYS[3][3][10] = {
@@ -179,12 +193,15 @@ static void draw_strip(Canvas* canvas, ChatModel* m) {
     } else {
         int total = log->count;
         int last = total - 1 - (int)m->scroll;
-        for(int i = 0; i < 2; i++) {
-            int idx = last - 1 + i;
-            if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
-        }
-        if(m->busy && m->scroll == 0 && m->notice[0]) {
-            canvas_draw_str(canvas, 1, 15, m->notice);
+        bool thinking = m->busy && m->scroll == 0 && m->notice[0];
+        if(thinking) {
+            if(last >= 0) canvas_draw_str(canvas, 1, 7, log->lines[last]);
+            canvas_draw_str(canvas, 12, 15, m->notice);
+        } else {
+            for(int i = 0; i < 2; i++) {
+                int idx = last - 1 + i;
+                if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
+            }
         }
         if(last - 1 > 0) canvas_draw_str(canvas, 122, 7, "^");
         if(m->scroll > 0) canvas_draw_str(canvas, 122, 15, "v");
@@ -192,10 +209,34 @@ static void draw_strip(Canvas* canvas, ChatModel* m) {
     if(m->row < 0) canvas_draw_frame(canvas, 0, 0, 128, 18);
 }
 
+#define FULL_ROWS 8
+
+static void draw_full(Canvas* canvas, ChatModel* m) {
+    ChatLog* log = m->log;
+    canvas_set_font(canvas, FontSecondary);
+    int total = log->count;
+    bool thinking = m->busy && m->scroll == 0 && m->notice[0];
+    int rows = thinking ? FULL_ROWS - 1 : FULL_ROWS;
+    int end = total - (int)m->scroll;
+    int start = end - rows;
+    for(int i = 0; i < rows; i++) {
+        int idx = start + i;
+        if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
+    }
+    if(total == 0) canvas_draw_str(canvas, 1, 7, "No messages yet");
+    if(thinking) canvas_draw_str(canvas, 12, 7 + rows * 8, m->notice);
+    if(start > 0) canvas_draw_str(canvas, 122, 7, "^");
+    if(m->scroll > 0) canvas_draw_str(canvas, 122, 63, "v");
+}
+
 static void chat_draw(Canvas* canvas, void* model) {
     ChatModel* m = model;
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
+    if(m->full) {
+        draw_full(canvas, m);
+        return;
+    }
     draw_strip(canvas, m);
     canvas_draw_line(canvas, 0, 18, 127, 18);
     draw_input(canvas, m);
@@ -208,7 +249,7 @@ static void chat_draw(Canvas* canvas, void* model) {
     }
     for(int c = 0; c < 5; c++) {
         int x = ACTION_X[c];
-        int w = ACTION_X[c + 1] - x;
+        int w = ACTION_X[c + 1] - x - 1;
         bool sel = m->row == 3 && m->col == c;
         draw_cell(canvas, x, 55, w, sel);
         switch(c) {
@@ -272,7 +313,20 @@ static void accept_suggestion(App* app, ChatModel* m) {
     refresh_suggestion(app, m);
 }
 
+static void move_full(ChatModel* m, InputKey key) {
+    int total = m->log->count;
+    if(key == InputKeyUp) {
+        if(total > FULL_ROWS && m->scroll < total - FULL_ROWS) m->scroll++;
+    } else if(key == InputKeyDown) {
+        if(m->scroll > 0) m->scroll--;
+    }
+}
+
 static void move_cursor(ChatModel* m, InputKey key) {
+    if(m->full) {
+        move_full(m, key);
+        return;
+    }
     int maxcol = m->row == 3 ? 4 : 9;
     switch(key) {
     case InputKeyLeft:
@@ -353,15 +407,35 @@ static bool chat_input(InputEvent* event, void* context) {
             app->chat_view,
             ChatModel * m,
             {
-                empty = m->input[0] == 0;
-                if(!empty) input_backspace(app, m);
+                if(m->full) {
+                    m->full = false;
+                    empty = false;
+                } else {
+                    empty = m->input[0] == 0;
+                    if(!empty) input_backspace(app, m);
+                }
             },
             true);
         return !empty ? true : false;
     }
     if(event->key == InputKeyOk) {
         if(event->type != InputTypeShort) return true;
-        with_view_model(app->chat_view, ChatModel * m, { send = press_key(app, m); }, true);
+        with_view_model(
+            app->chat_view,
+            ChatModel * m,
+            {
+                if(m->full) {
+                    m->full = false;
+                } else if(m->row < 0) {
+                    m->full = true;
+                    int total = m->log->count;
+                    int maxscroll = total > FULL_ROWS ? total - FULL_ROWS : 0;
+                    if(m->scroll > maxscroll) m->scroll = (uint16_t)maxscroll;
+                } else {
+                    send = press_key(app, m);
+                }
+            },
+            true);
         if(send) view_dispatcher_send_custom_event(app->dispatcher, EvtSend);
         return consumed;
     }
@@ -369,9 +443,12 @@ static bool chat_input(InputEvent* event, void* context) {
     return consumed;
 }
 
+static void sync_menu(App* app);
+
 static void sync_link_state(App* app) {
     LinkKind kind = link_kind(app->link);
     with_view_model(app->chat_view, ChatModel * m, { m->link = kind; }, true);
+    sync_menu(app);
 }
 
 static void set_notice(App* app, const char* text) {
@@ -405,8 +482,8 @@ static void unescape_into(FuriString* out, const char* text) {
 }
 
 static bool do_send(App* app, const char* text) {
-    if(link_kind(app->link) == LinkKindNone) {
-        set_notice(app, "No phone connected");
+    if(!link_phone_ready(app->link)) {
+        set_notice(app, "Phone app not detected");
         return false;
     }
     FuriString* line = furi_string_alloc();
@@ -442,6 +519,7 @@ static void handle_send(App* app) {
 
     app->busy = true;
     app->busy_ticks = 0;
+    app->link_lost = false;
     furi_string_reset(app->answer);
     suggest_learn(app->suggest, text);
     suggest_save(app->suggest);
@@ -456,7 +534,7 @@ static void handle_send(App* app) {
             m->suggestion[0] = 0;
             m->scroll = 0;
             m->busy = true;
-            snprintf(m->notice, sizeof(m->notice), "Claude is thinking...");
+            snprintf(m->notice, sizeof(m->notice), "Thinking...");
         },
         true);
 }
@@ -492,8 +570,19 @@ static void handle_line(App* app, const char* line) {
                 m->notice[0] = 0;
             },
             true);
+    } else if(line[0] == 'R' && line[1] == 0) {
+        if(!app->busy) return;
+        furi_string_reset(app->answer);
+        with_view_model(
+            app->chat_view,
+            ChatModel * m,
+            { chatlog_set_pending(m->log, ""); },
+            true);
     } else if(line[0] == 'E') {
-        if(app->busy) finish_answer(app, true);
+        if(app->busy) {
+            finish_answer(app, true);
+            link_send_line(app->link, "K\n");
+        }
     } else if(line[0] == 'X' && line[1] == ':') {
         if(!app->busy) return;
         furi_string_reset(app->answer);
@@ -543,6 +632,7 @@ static void enter_chat(App* app) {
             m->col = 4;
             m->layer = 0;
             m->scroll = 0;
+            m->full = false;
             m->busy = false;
             m->link = kind;
             m->dict_ok = dict_ok;
@@ -555,6 +645,7 @@ static void enter_chat(App* app) {
 
 static void show_menu(App* app) {
     suggest_save(app->suggest);
+    sync_menu(app);
     app->current = ViewMenu;
     view_dispatcher_switch_to_view(app->dispatcher, ViewMenu);
 }
@@ -562,30 +653,152 @@ static void show_menu(App* app) {
 static void show_info(App* app) {
     widget_reset(app->info);
     LinkKind kind = link_kind(app->link);
+    uint32_t rx = 0;
+    uint32_t pings = 0;
+    uint32_t pings_ok = 0;
+    link_stats(app->link, &rx, &pings, &pings_ok);
     FuriString* text = furi_string_alloc();
     furi_string_printf(
         text,
-        "\e#Claude Bridge\n\e*Link:\e* %s\n"
-        "1. Install the Android app\n"
-        "2. Pair it with this Flipper (Bluetooth) or plug in USB\n"
-        "3. USB is used automatically when connected\n\n"
+        "\e#AI Bridge\n"
+        "\e*Author:\e* Nahida4479\n"
+        "github.com/Nahida4479/\nFlipper-AI-Bridge\n\n"
+        "\e*Version:\e* %s\n"
+        "\e*Link:\e* %s\n\n"
+        "\e*Bluetooth:\e* pair the phone app with this Flipper and pick it in the app.\n"
+        "\e*USB:\e* plug the Flipper into the phone. USB is used automatically and has priority over Bluetooth.\n\n"
         "Chats: only 2 are kept. Starting a new chat when both slots are used replaces the "
         "oldest one. Max 500 KB per chat.\n\n"
-        "Hints: Hold OK = accept. Hold Back = menu.\n"
-        "Dictionary: %s",
+        "Debug: rx %lu B, ping %lu/%lu",
+        APP_VERSION,
         kind == LinkKindUsb ? "USB" : kind == LinkKindBle ? "Bluetooth" : "not connected",
-        suggest_dict_available(app->suggest) ? "ok" : "missing - reinstall .fap");
+        (unsigned long)rx,
+        (unsigned long)pings_ok,
+        (unsigned long)pings);
     widget_add_text_scroll_element(app->info, 0, 0, 128, 64, furi_string_get_cstr(text));
     furi_string_free(text);
     app->current = ViewInfo;
     view_dispatcher_switch_to_view(app->dispatcher, ViewInfo);
 }
 
+static const char* const MENU_LABELS[4] = {"Chat", "New chat", "Settings", "Info"};
+
+static bool menu_enabled(const MenuModel* m, int index) {
+    return index >= MenuSettings || m->ready;
+}
+
+static void menu_draw(Canvas* canvas, void* model) {
+    MenuModel* m = model;
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 9, "AI Bridge");
+    int title_w = canvas_string_width(canvas, "AI Bridge");
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, 6 + title_w, 9, APP_VERSION);
+    canvas_draw_line(canvas, 0, 11, 127, 11);
+    for(int i = 0; i < 4; i++) {
+        int y = 13 + i * 10;
+        if(m->selected == i) {
+            canvas_draw_box(canvas, 0, y, 128, 10);
+            canvas_set_color(canvas, ColorWhite);
+        }
+        canvas_draw_str(canvas, 4, y + 8, MENU_LABELS[i]);
+        canvas_set_color(canvas, ColorBlack);
+    }
+    canvas_draw_line(canvas, 0, 54, 127, 54);
+    const char* via = m->kind == LinkKindUsb ? "USB" : "BLE";
+    char msg[40];
+    if(m->starting) {
+        snprintf(msg, sizeof(msg), "Starting...");
+    } else if(m->ready) {
+        snprintf(msg, sizeof(msg), "Phone app connected (%s)", via);
+    } else if(m->linked) {
+        snprintf(msg, sizeof(msg), "%s linked, waiting for app", via);
+    } else {
+        snprintf(msg, sizeof(msg), "Phone app not detected");
+    }
+    canvas_draw_str_aligned(canvas, 64, 59, AlignCenter, AlignCenter, msg);
+}
+
+static void menu_cb(void* context, uint32_t index);
+
+static bool menu_input(InputEvent* event, void* context) {
+    App* app = context;
+    if(event->type != InputTypeShort && event->type != InputTypeRepeat) return false;
+    if(event->key == InputKeyUp || event->key == InputKeyDown) {
+        with_view_model(
+            app->menu_view,
+            MenuModel * m,
+            { m->selected = event->key == InputKeyUp ? (m->selected + 3) % 4 : (m->selected + 1) % 4; },
+            true);
+        return true;
+    }
+    if(event->key == InputKeyOk && event->type == InputTypeShort) {
+        uint8_t index = 0;
+        bool enabled = false;
+        with_view_model(
+            app->menu_view,
+            MenuModel * m,
+            {
+                index = m->selected;
+                enabled = menu_enabled(m, index);
+            },
+            false);
+        if(enabled) menu_cb(app, index);
+        return true;
+    }
+    return false;
+}
+
+static void sync_menu(App* app) {
+    bool ready = link_started(app->link) && link_phone_ready(app->link);
+    bool starting = !link_started(app->link);
+    LinkKind kind = link_kind(app->link);
+    with_view_model(
+        app->menu_view,
+        MenuModel * m,
+        {
+            m->ready = ready;
+            m->linked = kind != LinkKindNone;
+            m->starting = starting;
+            m->kind = kind;
+        },
+        true);
+}
+
+static void picker_cb(void* context, uint32_t index) {
+    App* app = context;
+    store_open_slot(app->store, (int)index);
+    enter_chat(app);
+}
+
+static void show_picker(App* app) {
+    submenu_reset(app->picker);
+    submenu_set_header(app->picker, "Open which chat?");
+    int first = app->store->seq[0] >= app->store->seq[1] ? 0 : 1;
+    for(int n = 0; n < 2; n++) {
+        int slot = n == 0 ? first : 1 - first;
+        if(!store_slot_used(app->store, slot)) continue;
+        char snippet[32];
+        char label[40];
+        store_last_question(app->store, slot, snippet, sizeof(snippet));
+        snprintf(label, sizeof(label), "%s", snippet);
+        submenu_add_item(app->picker, label, (uint32_t)slot, picker_cb, app);
+    }
+    app->current = ViewPicker;
+    view_dispatcher_switch_to_view(app->dispatcher, ViewPicker);
+}
+
 static void menu_cb(void* context, uint32_t index) {
     App* app = context;
     switch(index) {
     case MenuChat:
-        enter_chat(app);
+        if(store_chat_count(app->store) >= 2) {
+            show_picker(app);
+        } else {
+            enter_chat(app);
+        }
         break;
     case MenuNewChat:
         dialog_ex_set_header(app->confirm, "New chat", 64, 0, AlignCenter, AlignTop);
@@ -653,6 +866,14 @@ static bool custom_event_cb(void* context, uint32_t event) {
 static void tick_cb(void* context) {
     App* app = context;
     if(app->busy) {
+        bool lost = link_kind(app->link) == LinkKindNone;
+        if(lost && !app->link_lost) {
+            app->link_lost = true;
+            set_notice(app, "Reconnecting...");
+        } else if(!lost && app->link_lost) {
+            app->link_lost = false;
+            set_notice(app, "Thinking...");
+        }
         app->busy_ticks++;
         if(app->busy_ticks > BUSY_TIMEOUT_TICKS) {
             furi_string_reset(app->answer);
@@ -666,6 +887,12 @@ static void tick_cb(void* context) {
         }
     }
     if(app->current == ViewChat) sync_link_state(app);
+    if(link_started(app->link) && link_kind(app->link) != LinkKindNone &&
+       !link_phone_ready(app->link)) {
+        if(app->ping_ticks++ % 4 == 0) link_ping(app->link);
+    } else {
+        app->ping_ticks = 0;
+    }
 }
 
 static bool nav_cb(void* context) {
@@ -683,12 +910,17 @@ static void link_notify(void* context) {
     view_dispatcher_send_custom_event(app->dispatcher, EvtLink);
 }
 
-int32_t claude_bridge_app(void* p) {
+static int32_t init_worker(void* context) {
+    App* app = context;
+    link_start(app->link);
+    return 0;
+}
+
+int32_t ai_bridge_app(void* p) {
     UNUSED(p);
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
     app->store = store_alloc();
-    dict_ensure(app->store->storage);
     app->suggest = suggest_alloc(app->store->storage);
     suggest_set_lang(app->suggest, (SuggestLang)app->store->lang);
     app->log = chatlog_alloc();
@@ -701,13 +933,13 @@ int32_t claude_bridge_app(void* p) {
     view_dispatcher_set_navigation_event_callback(app->dispatcher, nav_cb);
     view_dispatcher_set_tick_event_callback(app->dispatcher, tick_cb, 500);
 
-    app->menu = submenu_alloc();
-    submenu_set_header(app->menu, "Claude Bridge");
-    submenu_add_item(app->menu, "Chat", MenuChat, menu_cb, app);
-    submenu_add_item(app->menu, "New chat", MenuNewChat, menu_cb, app);
-    submenu_add_item(app->menu, "Settings", MenuSettings, menu_cb, app);
-    submenu_add_item(app->menu, "Info", MenuInfo, menu_cb, app);
-    view_dispatcher_add_view(app->dispatcher, ViewMenu, submenu_get_view(app->menu));
+    app->menu_view = view_alloc();
+    view_allocate_model(app->menu_view, ViewModelTypeLocking, sizeof(MenuModel));
+    view_set_context(app->menu_view, app);
+    view_set_draw_callback(app->menu_view, menu_draw);
+    view_set_input_callback(app->menu_view, menu_input);
+    with_view_model(app->menu_view, MenuModel * m, { m->starting = true; }, false);
+    view_dispatcher_add_view(app->dispatcher, ViewMenu, app->menu_view);
 
     app->chat_view = view_alloc();
     view_allocate_model(app->chat_view, ViewModelTypeLocking, sizeof(ChatModel));
@@ -727,6 +959,9 @@ int32_t claude_bridge_app(void* p) {
     app->info = widget_alloc();
     view_dispatcher_add_view(app->dispatcher, ViewInfo, widget_get_view(app->info));
 
+    app->picker = submenu_alloc();
+    view_dispatcher_add_view(app->dispatcher, ViewPicker, submenu_get_view(app->picker));
+
     app->confirm = dialog_ex_alloc();
     dialog_ex_set_context(app->confirm, app);
     dialog_ex_set_result_callback(app->confirm, confirm_cb);
@@ -735,11 +970,15 @@ int32_t claude_bridge_app(void* p) {
     view_dispatcher_attach_to_gui(app->dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
     app->link = link_alloc(link_notify, app);
+    app->init_thread = furi_thread_alloc_ex("AiInit", 3072, init_worker, app);
+    furi_thread_start(app->init_thread);
 
     app->current = ViewMenu;
     view_dispatcher_switch_to_view(app->dispatcher, ViewMenu);
     view_dispatcher_run(app->dispatcher);
 
+    furi_thread_join(app->init_thread);
+    furi_thread_free(app->init_thread);
     link_free(app->link);
 
     suggest_save(app->suggest);
@@ -748,7 +987,10 @@ int32_t claude_bridge_app(void* p) {
     view_dispatcher_remove_view(app->dispatcher, ViewSettings);
     view_dispatcher_remove_view(app->dispatcher, ViewInfo);
     view_dispatcher_remove_view(app->dispatcher, ViewConfirm);
-    submenu_free(app->menu);
+    view_dispatcher_remove_view(app->dispatcher, ViewPicker);
+    submenu_free(app->picker);
+    view_free_model(app->menu_view);
+    view_free(app->menu_view);
     view_free_model(app->chat_view);
     view_free(app->chat_view);
     variable_item_list_free(app->settings);

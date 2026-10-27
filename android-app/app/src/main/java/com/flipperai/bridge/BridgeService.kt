@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -22,11 +22,14 @@ class BridgeService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var store: SecureStore
-    private lateinit var client: ClaudeClient
+    private lateinit var client: ApiClient
     private var ble: BleTransport? = null
     private var usb: UsbTransport? = null
     private var job: Job? = null
     private val history = ArrayList<ChatTurn>()
+    private var pending: List<String>? = null
+    private var pendingSince = 0L
+    private var lastResend = 0L
     private var bleStatus = "Off"
     private var usbStatus = "Off"
 
@@ -35,15 +38,18 @@ class BridgeService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = SecureStore(this)
-        client = ClaudeClient(store)
+        BridgeState.attach(this)
+        client = ApiClient(store)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            store.serviceWanted = false
             stopSelf()
             return START_NOT_STICKY
         }
         startForegroundCompat()
+        TransportHub.service = this
         if (ble == null) {
             ble = BleTransport(this, ::onLine) { status ->
                 bleStatus = status
@@ -53,9 +59,15 @@ class BridgeService : Service() {
                 usbStatus = status
                 publishStatus()
             }
+            TransportHub.ble = ble
+            TransportHub.usb = usb
         }
         if (intent?.action == ACTION_RESTART_BLE) {
             ble?.start(store.bleAddress)
+        } else if (intent?.action == ACTION_DISCONNECT_BLE) {
+            store.bleAddress = ""
+            store.bleName = ""
+            ble?.stop()
         } else if (intent?.action == ACTION_RESCAN_USB) {
             usb?.rescan()
         } else {
@@ -67,6 +79,9 @@ class BridgeService : Service() {
     }
 
     override fun onDestroy() {
+        TransportHub.ble = null
+        TransportHub.usb = null
+        TransportHub.service = null
         job?.cancel()
         ble?.stop()
         usb?.stop()
@@ -98,7 +113,7 @@ class BridgeService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Flipper Claude Bridge")
+            .setContentTitle("Flipper AI Bridge")
             .setContentText("Bluetooth: $bleStatus  |  USB: $usbStatus")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -134,7 +149,15 @@ class BridgeService : Service() {
 
     private fun onLine(source: Transport, line: String) {
         when {
-            line == "N" -> synchronized(history) { history.clear() }
+            line == "P" || line == "@app" -> {
+                source.send("H")
+                resendPending(source)
+            }
+            line == "K" -> pending = null
+            line == "N" -> {
+                pending = null
+                synchronized(history) { history.clear() }
+            }
             line.startsWith("U:") -> synchronized(history) {
                 history.add(ChatTurn("user", Protocol.unescape(line.substring(2))))
             }
@@ -143,6 +166,20 @@ class BridgeService : Service() {
             }
             line.startsWith("Q:") -> handleQuestion(source, line.substring(2))
         }
+    }
+
+    private fun resendPending(source: Transport) {
+        val lines = pending ?: return
+        val now = System.currentTimeMillis()
+        if (now - pendingSince > RESEND_WINDOW_MS) {
+            pending = null
+            return
+        }
+        if (now - lastResend < 3000) return
+        lastResend = now
+        source.send("R")
+        for (line in lines) source.send(line)
+        source.send("E")
     }
 
     private fun handleQuestion(source: Transport, payload: String) {
@@ -154,14 +191,18 @@ class BridgeService : Service() {
             history.add(ChatTurn("user", question))
             ArrayList(history)
         }
+        pending = null
         job?.cancel()
         job = scope.launch {
             BridgeState.update { it.copy(busy = true) }
-            source.send("S:Claude is thinking...")
+            source.send("S:Thinking...")
             try {
                 val answer = client.ask(snapshot, lang).ifEmpty { "(empty answer)" }
                 synchronized(history) { history.add(ChatTurn("assistant", answer)) }
-                for (line in Protocol.answerLines(answer)) source.send(line)
+                val lines = Protocol.answerLines(answer)
+                pending = lines
+                pendingSince = System.currentTimeMillis()
+                for (line in lines) source.send(line)
                 source.send("E")
                 BridgeState.addLog(LogEntry(question, answer, false))
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -179,9 +220,11 @@ class BridgeService : Service() {
     companion object {
         private const val CHANNEL_ID = "bridge"
         private const val NOTIFICATION_ID = 7
-        const val ACTION_STOP = "com.flipperclaude.bridge.STOP"
-        const val ACTION_RESTART_BLE = "com.flipperclaude.bridge.RESTART_BLE"
-        const val ACTION_RESCAN_USB = "com.flipperclaude.bridge.RESCAN_USB"
+        private const val RESEND_WINDOW_MS = 5 * 60 * 1000L
+        const val ACTION_STOP = "com.flipperai.bridge.STOP"
+        const val ACTION_RESTART_BLE = "com.flipperai.bridge.RESTART_BLE"
+        const val ACTION_DISCONNECT_BLE = "com.flipperai.bridge.DISCONNECT_BLE"
+        const val ACTION_RESCAN_USB = "com.flipperai.bridge.RESCAN_USB"
 
         fun start(context: Context, action: String? = null) {
             val intent = Intent(context, BridgeService::class.java)

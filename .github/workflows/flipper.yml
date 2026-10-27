@@ -24,15 +24,14 @@ jobs:
           app-dir: flipper-app
           sdk-channel: release
 
-      - name: Pack dictionaries into the .fap
+      - name: Collect .fap
         run: |
           mkdir -p out
-          FAP=$(find . -name claude_bridge.fap | head -n 1)
-          cp "$FAP" out/claude_bridge.fap
-          python3 tools/pack_fap.py out/claude_bridge.fap flipper-app/assets/dict/en.dict flipper-app/assets/dict/pl.dict
+          FAP=$(find . -name ai_bridge.fap | head -n 1)
+          cp "$FAP" out/ai_bridge.fap
 
       - uses: actions/upload-artifact@v4
         with:
-          name: claude_bridge-fap
-          path: out/claude_bridge.fap
+          name: ai_bridge-fap
+          path: out/ai_bridge.fap
           if-no-files-found: error

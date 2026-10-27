@@ -5,18 +5,35 @@ plugins {
 }
 
 android {
-    namespace = "com.flipperclaude.bridge"
+    namespace = "com.flipperai.bridge"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.flipperclaude.bridge"
+        applicationId = "com.flipperai.bridge"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("appVersion") as String?) ?: "1.0.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            val path = System.getenv("KEYSTORE_PATH")
+            if (!path.isNullOrEmpty()) {
+                storeFile = file(path)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (!System.getenv("KEYSTORE_PATH").isNullOrEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
@@ -34,6 +51,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -45,4 +63,5 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }

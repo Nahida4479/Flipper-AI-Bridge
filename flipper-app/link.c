@@ -37,18 +37,31 @@ struct Link {
     volatile bool ble_connected;
     volatile bool usb_dtr;
     volatile bool usb_connected;
+    volatile bool ble_ready;
+    volatile bool usb_ready;
+    volatile bool started;
+    volatile uint32_t rx_bytes;
+    volatile uint32_t pings;
+    volatile uint32_t pings_ok;
 };
 
 static void notify(Link* link) {
     if(link->notify) link->notify(link->context);
 }
 
-static void feed(Link* link, Assembler* a, const uint8_t* data, size_t size) {
+static void feed(Link* link, Assembler* a, bool usb, const uint8_t* data, size_t size) {
     for(size_t i = 0; i < size; i++) {
         char c = (char)data[i];
         if(c == '\r') continue;
         if(c == '\n') {
-            if(a->n > 0) {
+            if(a->n == 1 && a->buf[0] == 'H') {
+                if(usb) {
+                    link->usb_ready = true;
+                } else {
+                    link->ble_ready = true;
+                }
+                notify(link);
+            } else if(a->n > 0) {
                 LinkMsg msg;
                 memcpy(msg.line, a->buf, a->n);
                 msg.line[a->n] = 0;
@@ -72,13 +85,13 @@ static int32_t link_worker(void* context) {
         if(flags & EvtBle) {
             size_t n;
             while((n = furi_stream_buffer_receive(link->ble_rx, buf, sizeof(buf), 0)) > 0) {
-                feed(link, &link->ble_asm, buf, n);
+                feed(link, &link->ble_asm, false, buf, n);
             }
         }
         if(flags & EvtUsb) {
             int32_t n;
             while((n = furi_hal_cdc_receive(0, buf, sizeof(buf))) > 0) {
-                feed(link, &link->usb_asm, buf, (size_t)n);
+                feed(link, &link->usb_asm, true, buf, (size_t)n);
             }
         }
     }
@@ -88,6 +101,7 @@ static int32_t link_worker(void* context) {
 static uint16_t ble_event(SerialServiceEvent event, void* context) {
     Link* link = context;
     if(event.event == SerialServiceEventTypeDataReceived) {
+        link->rx_bytes += event.data.size;
         furi_stream_buffer_send(link->ble_rx, event.data.buffer, event.data.size, 0);
         furi_thread_flags_set(furi_thread_get_id(link->thread), EvtBle);
     }
@@ -97,6 +111,11 @@ static uint16_t ble_event(SerialServiceEvent event, void* context) {
 static void bt_status(BtStatus status, void* context) {
     Link* link = context;
     link->ble_connected = status == BtStatusConnected;
+    if(!link->ble_connected) link->ble_ready = false;
+    if(link->ble_connected && link->profile) {
+        ble_profile_serial_set_event_callback(link->profile, BLE_RX_BUFFER, ble_event, link);
+        ble_profile_serial_set_rpc_active(link->profile, FuriHalBtSerialRpcStatusNotActive);
+    }
     notify(link);
 }
 
@@ -112,13 +131,17 @@ static void cdc_tx(void* context) {
 static void cdc_state(void* context, CdcState state) {
     Link* link = context;
     link->usb_connected = state == CdcStateConnected;
-    if(!link->usb_connected) link->usb_dtr = false;
+    if(!link->usb_connected) {
+        link->usb_dtr = false;
+        link->usb_ready = false;
+    }
     notify(link);
 }
 
 static void cdc_ctrl(void* context, CdcCtrlLine lines) {
     Link* link = context;
     link->usb_dtr = (lines & CdcCtrlLineDTR) != 0;
+    if(!link->usb_dtr) link->usb_ready = false;
     notify(link);
 }
 
@@ -135,6 +158,8 @@ static CdcCallbacks cdc_callbacks = {
     .config_callback = cdc_config,
 };
 
+static void link_teardown(Link* link);
+
 Link* link_alloc(LinkNotify notify_cb, void* context) {
     Link* link = malloc(sizeof(Link));
     memset(link, 0, sizeof(Link));
@@ -142,13 +167,15 @@ Link* link_alloc(LinkNotify notify_cb, void* context) {
     link->context = context;
     link->ble_rx = furi_stream_buffer_alloc(BLE_RX_BUFFER, 1);
     link->queue = furi_message_queue_alloc(8, sizeof(LinkMsg));
-    link->thread = furi_thread_alloc_ex("ClaudeLink", 1536, link_worker, link);
+    link->thread = furi_thread_alloc_ex("AiLink", 1536, link_worker, link);
     furi_thread_start(link->thread);
+    return link;
+}
 
+void link_start(Link* link) {
     link->bt = furi_record_open(RECORD_BT);
     bt_disconnect(link->bt);
     furi_delay_ms(200);
-    bt_keys_storage_set_storage_path(link->bt, BT_KEYS_PATH);
     link->profile = bt_profile_start(link->bt, ble_profile_serial, NULL);
     if(link->profile) {
         ble_profile_serial_set_event_callback(link->profile, BLE_RX_BUFFER, ble_event, link);
@@ -162,10 +189,27 @@ Link* link_alloc(LinkNotify notify_cb, void* context) {
     furi_hal_usb_set_config(&usb_cdc_single, NULL);
     furi_hal_cdc_set_callbacks(0, &cdc_callbacks, link);
     link->usb_dtr = (furi_hal_cdc_get_ctrl_line_state(0) & CdcCtrlLineDTR) != 0;
-    return link;
+    link->started = true;
+    notify(link);
+}
+
+bool link_started(Link* link) {
+    return link->started;
 }
 
 void link_free(Link* link) {
+    if(link->started) {
+        link_teardown(link);
+    }
+    furi_thread_flags_set(furi_thread_get_id(link->thread), EvtStop);
+    furi_thread_join(link->thread);
+    furi_thread_free(link->thread);
+    furi_message_queue_free(link->queue);
+    furi_stream_buffer_free(link->ble_rx);
+    free(link);
+}
+
+static void link_teardown(Link* link) {
     furi_hal_cdc_set_callbacks(0, NULL, NULL);
     furi_hal_usb_unlock();
     furi_hal_usb_set_config(&usb_cdc_single, NULL);
@@ -175,16 +219,9 @@ void link_free(Link* link) {
     bt_set_status_changed_callback(link->bt, NULL, NULL);
     bt_disconnect(link->bt);
     furi_delay_ms(200);
-    bt_keys_storage_set_default_path(link->bt);
     bt_profile_restore_default(link->bt);
     furi_record_close(RECORD_BT);
-
-    furi_thread_flags_set(furi_thread_get_id(link->thread), EvtStop);
-    furi_thread_join(link->thread);
-    furi_thread_free(link->thread);
-    furi_message_queue_free(link->queue);
-    furi_stream_buffer_free(link->ble_rx);
-    free(link);
+    link->started = false;
 }
 
 FuriMessageQueue* link_queue(Link* link) {
@@ -193,6 +230,12 @@ FuriMessageQueue* link_queue(Link* link) {
 
 bool link_ble_connected(Link* link) {
     return link->ble_connected;
+}
+
+bool link_phone_ready(Link* link) {
+    if(link_usb_active(link)) return link->usb_ready;
+    if(link->ble_connected) return link->ble_ready;
+    return false;
 }
 
 bool link_usb_active(Link* link) {
@@ -242,4 +285,20 @@ bool link_send_line(Link* link, const char* text) {
     if(link_usb_active(link)) return send_usb((const uint8_t*)text, len);
     if(link->ble_connected && link->profile) return send_ble(link, (const uint8_t*)text, len);
     return false;
+}
+
+void link_ping(Link* link) {
+    static const uint8_t ping[2] = {'P', '\n'};
+    if(link_usb_active(link)) {
+        furi_hal_cdc_send(0, (uint8_t*)ping, sizeof(ping));
+    } else if(link->ble_connected && link->profile) {
+        link->pings++;
+        if(ble_profile_serial_tx(link->profile, (uint8_t*)ping, sizeof(ping))) link->pings_ok++;
+    }
+}
+
+void link_stats(Link* link, uint32_t* rx_bytes, uint32_t* pings, uint32_t* pings_ok) {
+    *rx_bytes = link->rx_bytes;
+    *pings = link->pings;
+    *pings_ok = link->pings_ok;
 }

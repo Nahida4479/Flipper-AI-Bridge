@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -65,8 +65,36 @@ class SecureStore(context: Context) {
         set(value) = putSecret(API_KEY, value)
 
     var model: String
-        get() = getSecret(MODEL).ifEmpty { DEFAULT_MODEL }
+        get() = getSecret(MODEL).let { if (it in MODEL_IDS) it else DEFAULT_MODEL }
         set(value) = putSecret(MODEL, value)
+
+    var effort: String
+        get() = getSecret(EFFORT).let { if (it in EFFORTS) it else DEFAULT_EFFORT }
+        set(value) = putSecret(EFFORT, value)
+
+    var betaUpdates: Boolean
+        get() = getSecret(BETA_UPDATES) == "1"
+        set(value) = putSecret(BETA_UPDATES, if (value) "1" else "")
+
+    var serviceWanted: Boolean
+        get() = getSecret(SERVICE_WANTED) == "1"
+        set(value) = putSecret(SERVICE_WANTED, if (value) "1" else "")
+
+    var lastNotifiedTag: String
+        get() = getSecret(LAST_NOTIFIED)
+        set(value) = putSecret(LAST_NOTIFIED, value)
+
+    var flipperFapTag: String
+        get() = getSecret(FAP_TAG)
+        set(value) = putSecret(FAP_TAG, value)
+
+    var requestLog: String
+        get() = getSecret(REQUEST_LOG)
+        set(value) = putSecret(REQUEST_LOG, value)
+
+    var flipperFapSha: String
+        get() = getSecret(FAP_SHA)
+        set(value) = putSecret(FAP_SHA, value)
 
     var extraPrompt: String
         get() = getSecret(EXTRA_PROMPT)
@@ -82,7 +110,17 @@ class SecureStore(context: Context) {
 
     companion object {
         const val DEFAULT_MODEL = "claude-sonnet-5-5"
-        private const val KEY_ALIAS = "flipper_claude_bridge_key"
+        const val DEFAULT_EFFORT = "low"
+        val MODEL_IDS = listOf("claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5")
+        val EFFORTS = listOf("low", "medium", "high")
+        private const val EFFORT = "effort"
+        private const val BETA_UPDATES = "beta_updates"
+        private const val FAP_SHA = "flipper_fap_sha"
+        private const val FAP_TAG = "flipper_fap_tag"
+        private const val REQUEST_LOG = "request_log"
+        private const val SERVICE_WANTED = "service_wanted"
+        private const val LAST_NOTIFIED = "last_notified_tag"
+        private const val KEY_ALIAS = "flipper_ai_bridge_key"
         private const val TRANSFORM = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12
         private const val API_KEY = "api_key"

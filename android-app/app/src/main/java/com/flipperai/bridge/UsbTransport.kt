@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -21,6 +21,8 @@ class UsbTransport(
 ) : Transport {
 
     override val label = "USB"
+    @Volatile override var rawSink: ((ByteArray) -> Unit)? = null
+    override val connected: Boolean get() = running
 
     private val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val assembler = LineAssembler { onLine(this, it) }
@@ -162,13 +164,17 @@ class UsbTransport(
             reader = Thread({ readLoop(conn, bulkIn) }, "usb-reader").also { it.start() }
         }
         onStatus("Connected")
+        onLine(this, "@ready")
     }
 
     private fun readLoop(conn: UsbDeviceConnection, ep: UsbEndpoint) {
         val buf = ByteArray(512)
         while (running) {
             val n = conn.bulkTransfer(ep, buf, buf.size, 500)
-            if (n > 0) assembler.feed(buf.copyOf(n))
+            if (n > 0) {
+                val sink = rawSink
+                if (sink != null) sink(buf.copyOf(n)) else assembler.feed(buf.copyOf(n))
+            }
             if (n < 0 && running) {
                 if (manager.deviceList.values.none { it.deviceId == device?.deviceId }) {
                     break
@@ -202,8 +208,9 @@ class UsbTransport(
         onStatus("Waiting for cable")
     }
 
-    override fun send(line: String) {
-        val data = (line + "\n").toByteArray(Charsets.UTF_8)
+    override fun send(line: String) = sendRaw((line + "\n").toByteArray(Charsets.UTF_8))
+
+    override fun sendRaw(data: ByteArray) {
         val conn: UsbDeviceConnection
         val ep: UsbEndpoint
         synchronized(lock) {
@@ -222,6 +229,6 @@ class UsbTransport(
     companion object {
         const val VID = 0x0483
         const val PID = 0x5740
-        private const val ACTION_PERMISSION = "com.flipperclaude.bridge.USB_PERMISSION"
+        private const val ACTION_PERMISSION = "com.flipperai.bridge.USB_PERMISSION"
     }
 }

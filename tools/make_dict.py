@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 from wordfreq import top_n_list
 
-RECORD = 24
-COUNT = 9000
+RECORD = 20
+COUNT = 6000
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("flipper-app/assets")
 PATTERNS = {
     "en": re.compile(r"^[a-z][a-z']*$"),

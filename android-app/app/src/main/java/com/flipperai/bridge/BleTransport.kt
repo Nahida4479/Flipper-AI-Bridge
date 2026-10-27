@@ -1,4 +1,4 @@
-package com.flipperclaude.bridge
+package com.flipperai.bridge
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -24,6 +24,8 @@ class BleTransport(
 ) : Transport {
 
     override val label = "Bluetooth"
+    @Volatile override var rawSink: ((ByteArray) -> Unit)? = null
+    override val connected: Boolean get() = ready
 
     private val handler = Handler(Looper.getMainLooper())
     private val assembler = LineAssembler { onLine(this, it) }
@@ -35,8 +37,39 @@ class BleTransport(
     private var address = ""
     private var active = false
     private var ready = false
+    private var statusChar: BluetoothGattCharacteristic? = null
+    @Volatile var rpcActive: Boolean? = null
+    @Volatile private var rxPackets = 0
+    @Volatile private var rxBytes = 0
+    @Volatile private var lastRx = ""
+    @Volatile private var writeOk = 0
+    @Volatile private var writeFail = 0
+    @Volatile private var lastWriteStatus = -1
+
+    fun debugLine(): String {
+        val mode = when (rpcActive) {
+            true -> "no app running (system mode)"
+            false -> "AI Bridge app is running"
+            null -> "not checked yet"
+        }
+        val sent = if (writeFail == 0) "$writeOk sent" else "$writeOk sent, $writeFail failed"
+        return "Flipper: $mode. Messages from the Flipper: $rxPackets. To the Flipper: $sent."
+    }
 
     private val reconnect = Runnable { connect() }
+    private var linkUp = false
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (!active) return
+            if (!ready && !linkUp) {
+                onStatus("Searching for Flipper")
+                gatt?.close()
+                gatt = null
+                connect(direct = true)
+            }
+            handler.postDelayed(this, WATCHDOG_MS)
+        }
+    }
 
     fun start(address: String) {
         stop()
@@ -47,12 +80,28 @@ class BleTransport(
         }
         active = true
         connect()
+        handler.removeCallbacks(watchdog)
+        handler.postDelayed(watchdog, WATCHDOG_MS)
+    }
+
+    fun reconnect(timeoutMs: Long): Boolean {
+        val target = address
+        if (target.isEmpty()) return false
+        start(target)
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (ready) return true
+            Thread.sleep(200)
+        }
+        return false
     }
 
     fun stop() {
         active = false
         ready = false
+        linkUp = false
         handler.removeCallbacks(reconnect)
+        handler.removeCallbacks(watchdog)
         queue.clear()
         writing = false
         assembler.reset()
@@ -65,7 +114,7 @@ class BleTransport(
         onStatus("Off")
     }
 
-    private fun connect() {
+    private fun connect(direct: Boolean = false) {
         if (!active) return
         val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
         if (adapter == null || !adapter.isEnabled) {
@@ -81,10 +130,10 @@ class BleTransport(
         }
         onStatus("Connecting")
         gatt?.close()
-        gatt = device.connectGatt(context, true, callback, BluetoothDevice.TRANSPORT_LE)
+        gatt = device.connectGatt(context, !direct, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(code: Int) {
         gatt?.close()
         gatt = null
         rx = null
@@ -93,7 +142,7 @@ class BleTransport(
         writing = false
         assembler.reset()
         if (active) {
-            onStatus("Connecting")
+            onStatus(if (code == 0) "Connecting" else "Retrying (error $code)")
             handler.removeCallbacks(reconnect)
             handler.postDelayed(reconnect, RECONNECT_MS)
         }
@@ -102,10 +151,12 @@ class BleTransport(
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                linkUp = true
                 onStatus("Pairing / setup")
                 g.requestMtu(247)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                handler.post { scheduleReconnect() }
+                linkUp = false
+                handler.post { scheduleReconnect(status) }
             }
         }
 
@@ -123,18 +174,25 @@ class BleTransport(
                 return
             }
             rx = rxChar
+            statusChar = service.getCharacteristic(STATUS_UUID)
             g.setCharacteristicNotification(tx, true)
             val cccd = tx.getDescriptor(CCCD_UUID)
             if (cccd == null) {
                 onStatus("Notifications unavailable")
                 return
             }
+            val indicate = (tx.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+            val enable = if (indicate) {
+                BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            } else {
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            }
             if (Build.VERSION.SDK_INT >= 33) {
-                g.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                g.writeDescriptor(cccd, enable)
             } else {
                 @Suppress("DEPRECATION")
                 run {
-                    cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    cccd.value = enable
                     g.writeDescriptor(cccd)
                 }
             }
@@ -144,6 +202,9 @@ class BleTransport(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 ready = true
                 onStatus("Connected")
+                val sc = statusChar
+                statusReads = 0
+                if (sc != null) g.readCharacteristic(sc) else onRpcStatus(null)
             } else {
                 onStatus("Pairing failed ($status)")
             }
@@ -152,7 +213,7 @@ class BleTransport(
         @Deprecated("Deprecated in API 33")
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic) {
             @Suppress("DEPRECATION")
-            c.value?.let { assembler.feed(it) }
+            c.value?.let { dispatch(it) }
         }
 
         override fun onCharacteristicChanged(
@@ -160,13 +221,64 @@ class BleTransport(
             c: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            assembler.feed(value)
+            dispatch(value)
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
+            lastWriteStatus = status
+            if (status == BluetoothGatt.GATT_SUCCESS) writeOk++ else writeFail++
             writing = false
             pump()
         }
+
+        @Deprecated("Deprecated in API 33")
+        override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
+            @Suppress("DEPRECATION")
+            handleRead(c, c.value, status)
+        }
+
+        override fun onCharacteristicRead(
+            g: BluetoothGatt,
+            c: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
+            handleRead(c, value, status)
+        }
+    }
+
+    private fun handleRead(c: BluetoothGattCharacteristic, value: ByteArray?, status: Int) {
+        if (c.uuid != STATUS_UUID) return
+        if (status != BluetoothGatt.GATT_SUCCESS || value == null || value.isEmpty()) {
+            onRpcStatus(null)
+        } else {
+            onRpcStatus(value[0].toInt() != 0)
+        }
+    }
+
+    private var statusReads = 0
+
+    private fun onRpcStatus(active: Boolean?) {
+        rpcActive = active
+        if (active == false) {
+            statusReads = 0
+            onLine(this, "@app")
+        } else if (active == true && statusReads < 6 && ready) {
+            statusReads++
+            handler.postDelayed({
+                val g = gatt
+                val sc = statusChar
+                if (ready && g != null && sc != null) g.readCharacteristic(sc)
+            }, 1500)
+        }
+    }
+
+    private fun dispatch(value: ByteArray) {
+        rxPackets++
+        rxBytes += value.size
+        lastRx = value.take(6).joinToString(" ") { "%02x".format(it) }
+        val sink = rawSink
+        if (sink != null) sink(value) else assembler.feed(value)
     }
 
     @Synchronized
@@ -193,9 +305,10 @@ class BleTransport(
         }
     }
 
-    override fun send(line: String) {
+    override fun send(line: String) = sendRaw((line + "\n").toByteArray(Charsets.UTF_8))
+
+    override fun sendRaw(data: ByteArray) {
         if (!ready) return
-        val data = (line + "\n").toByteArray(Charsets.UTF_8)
         val size = (mtu - 3).coerceAtLeast(20)
         var off = 0
         while (off < data.size) {
@@ -208,10 +321,12 @@ class BleTransport(
 
     companion object {
         private const val RETRY_MS = 5000L
+        private const val WATCHDOG_MS = 30000L
         private const val RECONNECT_MS = 2000L
         val SERVICE_UUID: UUID = UUID.fromString("8fe5b3d5-2e7f-4a98-2a48-7acc60fe0000")
         val TX_UUID: UUID = UUID.fromString("19ed82ae-ed21-4c9d-4145-228e61fe0000")
         val RX_UUID: UUID = UUID.fromString("19ed82ae-ed21-4c9d-4145-228e62fe0000")
+        val STATUS_UUID: UUID = UUID.fromString("19ed82ae-ed21-4c9d-4145-228e64fe0000")
         val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
         fun adapter(context: Context): BluetoothAdapter? =
