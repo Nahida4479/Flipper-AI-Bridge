@@ -56,6 +56,19 @@ class BleTransport(
             }
 
     private val reconnect = Runnable { connect() }
+    private var linkUp = false
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (!active) return
+            if (!ready && !linkUp) {
+                onStatus("Searching for Flipper")
+                gatt?.close()
+                gatt = null
+                connect(direct = true)
+            }
+            handler.postDelayed(this, WATCHDOG_MS)
+        }
+    }
 
     fun start(address: String) {
         stop()
@@ -66,6 +79,8 @@ class BleTransport(
         }
         active = true
         connect()
+        handler.removeCallbacks(watchdog)
+        handler.postDelayed(watchdog, WATCHDOG_MS)
     }
 
     fun reconnect(timeoutMs: Long): Boolean {
@@ -83,7 +98,9 @@ class BleTransport(
     fun stop() {
         active = false
         ready = false
+        linkUp = false
         handler.removeCallbacks(reconnect)
+        handler.removeCallbacks(watchdog)
         queue.clear()
         writing = false
         assembler.reset()
@@ -96,7 +113,7 @@ class BleTransport(
         onStatus("Off")
     }
 
-    private fun connect() {
+    private fun connect(direct: Boolean = false) {
         if (!active) return
         val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
         if (adapter == null || !adapter.isEnabled) {
@@ -112,7 +129,7 @@ class BleTransport(
         }
         onStatus("Connecting")
         gatt?.close()
-        gatt = device.connectGatt(context, true, callback, BluetoothDevice.TRANSPORT_LE)
+        gatt = device.connectGatt(context, !direct, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
     private fun scheduleReconnect(code: Int) {
@@ -133,9 +150,11 @@ class BleTransport(
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                linkUp = true
                 onStatus("Pairing / setup")
                 g.requestMtu(247)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                linkUp = false
                 handler.post { scheduleReconnect(status) }
             }
         }
@@ -301,6 +320,7 @@ class BleTransport(
 
     companion object {
         private const val RETRY_MS = 5000L
+        private const val WATCHDOG_MS = 30000L
         private const val RECONNECT_MS = 2000L
         val SERVICE_UUID: UUID = UUID.fromString("8fe5b3d5-2e7f-4a98-2a48-7acc60fe0000")
         val TX_UUID: UUID = UUID.fromString("19ed82ae-ed21-4c9d-4145-228e61fe0000")

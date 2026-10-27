@@ -212,20 +212,33 @@ object AppModel {
                     client.mkdir(FAP_DIR)
                 }
                 val temp = "$target.new"
-                state.update { it.copy(fapMessage = "Uploading") }
-                val delay = if (transport is UsbTransport) 0L else 30L
-                val chunk = if (transport is UsbTransport) 480 else 200
-                client.write(temp, data, chunk, delay) { p ->
-                    state.update { it.copy(fapProgress = 25 + p * 7 / 10) }
-                }
-                state.update { it.copy(fapMessage = "Verifying", fapProgress = 96) }
-                val remote = client.md5(temp)
-                if (!remote.equals(Releases.md5(data), ignoreCase = true)) {
+                val localMd5 = Releases.md5(data)
+                val speeds = if (transport is UsbTransport) listOf(0L to 480, 0L to 240) else listOf(35L to 160, 70L to 128, 130L to 96)
+                var verified = false
+                var detail = ""
+                for ((attempt, speed) in speeds.withIndex()) {
+                    state.update { it.copy(fapMessage = if (attempt == 0) "Uploading" else "Retrying upload (${attempt + 1}/${speeds.size})", fapProgress = 25) }
                     try {
                         client.delete(temp)
                     } catch (e: RpcException) {
                     }
-                    throw RpcException("Upload verification failed, nothing was changed")
+                    client.write(temp, data, speed.second, speed.first) { p ->
+                        state.update { it.copy(fapProgress = 25 + p * 7 / 10) }
+                    }
+                    state.update { it.copy(fapMessage = "Verifying", fapProgress = 96) }
+                    val remote = client.md5(temp)
+                    if (remote.equals(localMd5, ignoreCase = true)) {
+                        verified = true
+                        break
+                    }
+                    detail = "Flipper ${remote.take(8).ifEmpty { "empty" }} vs phone ${localMd5.take(8)}"
+                }
+                if (!verified) {
+                    try {
+                        client.delete(temp)
+                    } catch (e: RpcException) {
+                    }
+                    throw RpcException("Upload verification failed ($detail), nothing was changed")
                 }
                 if (existing?.current == true) client.delete(target)
                 if (existing?.legacy == true) client.delete("$dir/$LEGACY_FAP_NAME")
