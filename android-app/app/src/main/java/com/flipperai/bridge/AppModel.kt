@@ -35,6 +35,8 @@ object AppModel {
     private const val FAP_DIR = "/ext/apps/Tools"
     private const val LEGACY_FAP_NAME = "claude_bridge.fap"
 
+    private fun includeBeta(store: SecureStore) = store.betaUpdates || BuildConfig.VERSION_NAME.contains("-")
+
     fun reportInstall(message: String) = state.update { it.copy(appBusy = false, appProgress = -1, appMessage = message) }
 
     fun check(context: Context) {
@@ -43,7 +45,7 @@ object AppModel {
         state.update { it.copy(checking = true, appMessage = "", fapMessage = "") }
         scope.launch {
             try {
-                val latest = Releases.latest(store.betaUpdates)
+                val latest = Releases.latest(includeBeta(store))
                 release = latest
                 if (latest == null) {
                     state.update { it.copy(checking = false, appMessage = "No release found") }
@@ -137,8 +139,8 @@ object AppModel {
             try {
                 val transport = TransportHub.active()
                     ?: throw RpcException("Start the service and connect the Flipper over USB or Bluetooth")
-                val rel = release ?: Releases.latest(store.betaUpdates)
-                    ?: throw RpcException("No release found")
+                val rel = release ?: Releases.latest(includeBeta(store))
+                    ?: throw RpcException("No release found. If only beta releases exist, turn on Include beta versions")
                 release = rel
                 state.update { it.copy(fapMessage = "Downloading Flipper app") }
                 val data = Releases.fetchAndVerify(rel, Releases.FAP_NAME) { p ->
