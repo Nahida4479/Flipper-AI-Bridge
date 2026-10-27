@@ -53,6 +53,7 @@ Branches: `main` is stable, `beta` receives new changes for testing.
 | D-pad | Move over the keyboard. Up from the top row selects the chat strip, then Up/Down scroll |
 | OK | Press the key |
 | Hold OK | Accept the hint |
+| OK on the chat strip | Show the whole chat on the full screen (Up/Down scroll). Press OK or Back to return to the keyboard |
 | Back | Delete a character. When the input is empty: back to the menu |
 | Hold Back | Back to the menu |
 

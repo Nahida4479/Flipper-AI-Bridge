@@ -53,6 +53,7 @@ Gałęzie: `main` to wersja stabilna, `beta` dostaje nowe zmiany do testów.
 | Krzyżak | Poruszanie po klawiaturze. W górę z górnego rzędu wybiera pasek czatu, potem góra/dół przewija |
 | OK | Wciśnięcie klawisza |
 | Przytrzymaj OK | Przyjęcie podpowiedzi |
+| OK na pasku czatu | Pokazuje cały czat na pełnym ekranie (góra/dół przewija). OK albo Back wraca do klawiatury |
 | Back | Kasowanie znaku. Przy pustym polu: powrót do menu |
 | Przytrzymaj Back | Powrót do menu |
 

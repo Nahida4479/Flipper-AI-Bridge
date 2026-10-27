@@ -49,6 +49,7 @@ typedef struct {
     int8_t col;
     uint8_t layer;
     uint16_t scroll;
+    bool full;
     bool busy;
     bool dict_ok;
     LinkKind link;
@@ -204,10 +205,34 @@ static void draw_strip(Canvas* canvas, ChatModel* m) {
     if(m->row < 0) canvas_draw_frame(canvas, 0, 0, 128, 18);
 }
 
+#define FULL_ROWS 8
+
+static void draw_full(Canvas* canvas, ChatModel* m) {
+    ChatLog* log = m->log;
+    canvas_set_font(canvas, FontSecondary);
+    int total = log->count;
+    bool thinking = m->busy && m->scroll == 0 && m->notice[0];
+    int rows = thinking ? FULL_ROWS - 1 : FULL_ROWS;
+    int end = total - (int)m->scroll;
+    int start = end - rows;
+    for(int i = 0; i < rows; i++) {
+        int idx = start + i;
+        if(idx >= 0 && idx < total) canvas_draw_str(canvas, 1, 7 + i * 8, log->lines[idx]);
+    }
+    if(total == 0) canvas_draw_str(canvas, 1, 7, "No messages yet");
+    if(thinking) canvas_draw_str(canvas, 12, 7 + rows * 8, m->notice);
+    if(start > 0) canvas_draw_str(canvas, 122, 7, "^");
+    if(m->scroll > 0) canvas_draw_str(canvas, 122, 63, "v");
+}
+
 static void chat_draw(Canvas* canvas, void* model) {
     ChatModel* m = model;
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
+    if(m->full) {
+        draw_full(canvas, m);
+        return;
+    }
     draw_strip(canvas, m);
     canvas_draw_line(canvas, 0, 18, 127, 18);
     draw_input(canvas, m);
@@ -284,7 +309,20 @@ static void accept_suggestion(App* app, ChatModel* m) {
     refresh_suggestion(app, m);
 }
 
+static void move_full(ChatModel* m, InputKey key) {
+    int total = m->log->count;
+    if(key == InputKeyUp) {
+        if(total > FULL_ROWS && m->scroll < total - FULL_ROWS) m->scroll++;
+    } else if(key == InputKeyDown) {
+        if(m->scroll > 0) m->scroll--;
+    }
+}
+
 static void move_cursor(ChatModel* m, InputKey key) {
+    if(m->full) {
+        move_full(m, key);
+        return;
+    }
     int maxcol = m->row == 3 ? 4 : 9;
     switch(key) {
     case InputKeyLeft:
@@ -365,15 +403,35 @@ static bool chat_input(InputEvent* event, void* context) {
             app->chat_view,
             ChatModel * m,
             {
-                empty = m->input[0] == 0;
-                if(!empty) input_backspace(app, m);
+                if(m->full) {
+                    m->full = false;
+                    empty = false;
+                } else {
+                    empty = m->input[0] == 0;
+                    if(!empty) input_backspace(app, m);
+                }
             },
             true);
         return !empty ? true : false;
     }
     if(event->key == InputKeyOk) {
         if(event->type != InputTypeShort) return true;
-        with_view_model(app->chat_view, ChatModel * m, { send = press_key(app, m); }, true);
+        with_view_model(
+            app->chat_view,
+            ChatModel * m,
+            {
+                if(m->full) {
+                    m->full = false;
+                } else if(m->row < 0) {
+                    m->full = true;
+                    int total = m->log->count;
+                    int maxscroll = total > FULL_ROWS ? total - FULL_ROWS : 0;
+                    if(m->scroll > maxscroll) m->scroll = (uint16_t)maxscroll;
+                } else {
+                    send = press_key(app, m);
+                }
+            },
+            true);
         if(send) view_dispatcher_send_custom_event(app->dispatcher, EvtSend);
         return consumed;
     }
@@ -558,6 +616,7 @@ static void enter_chat(App* app) {
             m->col = 4;
             m->layer = 0;
             m->scroll = 0;
+            m->full = false;
             m->busy = false;
             m->link = kind;
             m->dict_ok = dict_ok;
