@@ -21,12 +21,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -45,7 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -138,14 +147,21 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         val ui by BridgeState.state.collectAsState()
+        val upd by AppModel.state.collectAsState()
         var apiKey by remember { mutableStateOf("") }
         var apiKeySaved by remember { mutableStateOf(store.apiKey.isNotEmpty()) }
+        var editingKey by remember { mutableStateOf(false) }
         var model by remember { mutableStateOf(store.model) }
+        var effort by remember { mutableStateOf(store.effort) }
         var extra by remember { mutableStateOf(store.extraPrompt) }
         var bleName by remember { mutableStateOf(store.bleName) }
+        var beta by remember { mutableStateOf(store.betaUpdates) }
         var modelMenu by remember { mutableStateOf(false) }
+        var effortMenu by remember { mutableStateOf(false) }
         var permsOk by remember { mutableStateOf(hasPermissions()) }
         val context = LocalContext.current
+
+        LaunchedEffect(Unit) { AppModel.check(context) }
 
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -158,15 +174,16 @@ class MainActivity : ComponentActivity() {
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item { Spacer(Modifier.height(28.dp)) }
             item {
                 Text("Flipper Claude Bridge", style = MaterialTheme.typography.headlineSmall)
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (ui.running) "Service: running" else "Service: stopped")
-                        Text("Bluetooth: ${ui.bleStatus}")
-                        Text("USB: ${ui.usbStatus}")
+                        Text(labeled("Service: ", if (ui.running) "running" else "stopped"))
+                        Text(labeled("Bluetooth: ", "Bluetooth Low Energy (BLE) - ${ui.bleStatus}"))
+                        Text(labeled("USB: ", ui.usbStatus))
                         if (ui.busy) Text("Asking Claude...")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (!permsOk) {
@@ -185,47 +202,86 @@ class MainActivity : ComponentActivity() {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Claude API", style = MaterialTheme.typography.titleMedium)
-                        OutlinedTextField(
-                            value = apiKey,
-                            onValueChange = { apiKey = it },
-                            label = { Text(if (apiKeySaved) "API key (saved, enter new to replace)" else "API key") },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Updates", style = MaterialTheme.typography.titleMedium)
+                        Text("Installed version: ${BuildConfig.VERSION_NAME}")
+                        if (upd.appUpdate) {
+                            Text("New version available: ${upd.latestTag}")
+                            if (upd.appBusy && upd.appProgress >= 0) {
+                                LinearProgressIndicator(
+                                    progress = { upd.appProgress / 100f },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                             Button(
-                                enabled = apiKey.isNotBlank(),
-                                onClick = {
-                                    store.apiKey = apiKey.trim()
-                                    apiKey = ""
-                                    apiKeySaved = true
-                                }
-                            ) { Text("Save key") }
-                            if (apiKeySaved) {
+                                enabled = !upd.appBusy,
+                                onClick = { AppModel.installApk(context) }
+                            ) { Text("Download, verify checksum and install") }
+                        }
+                        if (upd.appMessage.isNotEmpty()) Text(upd.appMessage)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Switch(checked = beta, onCheckedChange = {
+                                beta = it
+                                store.betaUpdates = it
+                            })
+                            Text("Include beta versions")
+                        }
+                        OutlinedButton(
+                            enabled = !upd.checking,
+                            onClick = { AppModel.check(context) }
+                        ) { Text(if (upd.checking) "Checking..." else "Check for updates") }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Claude API", style = MaterialTheme.typography.titleMedium)
+                        if (apiKeySaved && !editingKey) {
+                            Text(labeled("API key: ", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { editingKey = true }) { Text("Change key") }
                                 TextButton(onClick = {
                                     store.apiKey = ""
                                     apiKeySaved = false
                                 }) { Text("Remove key") }
                             }
+                        } else {
+                            OutlinedTextField(
+                                value = apiKey,
+                                onValueChange = { apiKey = it },
+                                label = { Text("API key") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    enabled = apiKey.isNotBlank(),
+                                    onClick = {
+                                        store.apiKey = apiKey.trim()
+                                        apiKey = ""
+                                        apiKeySaved = true
+                                        editingKey = false
+                                    }
+                                ) { Text("Save key") }
+                                if (apiKeySaved) {
+                                    TextButton(onClick = {
+                                        apiKey = ""
+                                        editingKey = false
+                                    }) { Text("Cancel") }
+                                }
+                            }
                         }
-                        OutlinedTextField(
-                            value = model,
-                            onValueChange = {
-                                model = it
-                                store.model = it.trim()
-                            },
-                            label = { Text("Model") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        TextButton(onClick = { modelMenu = true }) { Text("Pick a model") }
+                        Text(labeled("Model: ", MODEL_NAMES[model] ?: model))
+                        OutlinedButton(onClick = { modelMenu = true }) { Text("Pick a model") }
                         DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                            MODELS.forEach { m ->
+                            SecureStore.MODEL_IDS.forEach { m ->
                                 DropdownMenuItem(
-                                    text = { Text(m) },
+                                    text = { Text(MODEL_NAMES[m] ?: m) },
                                     onClick = {
                                         model = m
                                         store.model = m
@@ -234,6 +290,21 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                        Text(labeled("Effort: ", effort.replaceFirstChar { it.uppercase() }))
+                        OutlinedButton(onClick = { effortMenu = true }) { Text("Pick effort") }
+                        DropdownMenu(expanded = effortMenu, onDismissRequest = { effortMenu = false }) {
+                            SecureStore.EFFORTS.forEach { e ->
+                                DropdownMenuItem(
+                                    text = { Text(e.replaceFirstChar { it.uppercase() }) },
+                                    onClick = {
+                                        effort = e
+                                        store.effort = e
+                                        effortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                        Text("Lower effort answers faster and cheaper.", style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(
                             value = extra,
                             onValueChange = {
@@ -249,9 +320,9 @@ class MainActivity : ComponentActivity() {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Flipper (Bluetooth)", style = MaterialTheme.typography.titleMedium)
+                        Text("Flipper", style = MaterialTheme.typography.titleMedium)
                         Text(if (bleName.isEmpty()) "No Flipper selected" else "Selected: $bleName")
-                        Text("Paired devices are listed too. Pick your Flipper from the list. Start the Claude Bridge app on the Flipper first.")
+                        Text("Bluetooth Low Energy (BLE). Paired devices are listed too. Pick your Flipper from the list.")
                         Button(
                             enabled = permsOk && !scanning,
                             onClick = { startScan() }
@@ -271,6 +342,23 @@ class MainActivity : ComponentActivity() {
                             ) { Text("$name  ($address)") }
                         }
                         Text("USB: just plug the Flipper in. USB has priority over Bluetooth.")
+                        Text("Flipper app", style = MaterialTheme.typography.titleSmall)
+                        if (upd.fapStatus.isNotEmpty()) Text(upd.fapStatus)
+                        if (upd.fapBusy && upd.fapProgress >= 0) {
+                            LinearProgressIndicator(
+                                progress = { upd.fapProgress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (upd.fapMessage.isNotEmpty()) Text(upd.fapMessage)
+                        Button(
+                            enabled = ui.running && !upd.fapBusy,
+                            onClick = { AppModel.installFap(context) }
+                        ) { Text(if (upd.fapUpdate && upd.fapStatus.startsWith("Update")) "Update on Flipper" else "Install on Flipper") }
+                        Text(
+                            "Start the service first and connect the Flipper. Close Claude Bridge on the Flipper before installing. Chats and settings on the Flipper are kept.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
@@ -295,16 +383,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            item { Text("") }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 
+    private fun labeled(label: String, value: String) = buildAnnotatedString {
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(label) }
+        append(value)
+    }
+
     companion object {
-        private val MODELS = listOf(
-            "claude-sonnet-5-5",
-            "claude-haiku-5-5",
-            "claude-opus-5-5",
-            "claude-fable-5-1"
+        private val MODEL_NAMES = mapOf(
+            "claude-sonnet-5-5" to "Claude Sonnet 5.5",
+            "claude-haiku-5-5" to "Claude Haiku 5.5",
+            "claude-opus-5-5" to "Claude Opus 5.5"
         )
     }
 }

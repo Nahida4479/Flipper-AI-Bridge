@@ -65,8 +65,20 @@ class SecureStore(context: Context) {
         set(value) = putSecret(API_KEY, value)
 
     var model: String
-        get() = getSecret(MODEL).ifEmpty { DEFAULT_MODEL }
+        get() = getSecret(MODEL).let { if (it in MODEL_IDS) it else DEFAULT_MODEL }
         set(value) = putSecret(MODEL, value)
+
+    var effort: String
+        get() = getSecret(EFFORT).let { if (it in EFFORTS) it else DEFAULT_EFFORT }
+        set(value) = putSecret(EFFORT, value)
+
+    var betaUpdates: Boolean
+        get() = getSecret(BETA_UPDATES) == "1"
+        set(value) = putSecret(BETA_UPDATES, if (value) "1" else "")
+
+    var flipperFapSha: String
+        get() = getSecret(FAP_SHA)
+        set(value) = putSecret(FAP_SHA, value)
 
     var extraPrompt: String
         get() = getSecret(EXTRA_PROMPT)
@@ -82,6 +94,12 @@ class SecureStore(context: Context) {
 
     companion object {
         const val DEFAULT_MODEL = "claude-sonnet-5-5"
+        const val DEFAULT_EFFORT = "low"
+        val MODEL_IDS = listOf("claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5")
+        val EFFORTS = listOf("low", "medium", "high")
+        private const val EFFORT = "effort"
+        private const val BETA_UPDATES = "beta_updates"
+        private const val FAP_SHA = "flipper_fap_sha"
         private const val KEY_ALIAS = "flipper_claude_bridge_key"
         private const val TRANSFORM = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12

@@ -9,3 +9,5 @@ captures/
 dist/
 .vscode/
 __pycache__/
+*.jks
+*.b64

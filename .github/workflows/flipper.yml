@@ -24,12 +24,11 @@ jobs:
           app-dir: flipper-app
           sdk-channel: release
 
-      - name: Pack dictionaries into the .fap
+      - name: Collect .fap
         run: |
           mkdir -p out
           FAP=$(find . -name claude_bridge.fap | head -n 1)
           cp "$FAP" out/claude_bridge.fap
-          python3 tools/pack_fap.py out/claude_bridge.fap flipper-app/assets/dict/en.dict flipper-app/assets/dict/pl.dict
 
       - uses: actions/upload-artifact@v4
         with:

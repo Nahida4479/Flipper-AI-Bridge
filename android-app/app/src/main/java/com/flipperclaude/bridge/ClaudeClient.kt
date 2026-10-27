@@ -24,6 +24,7 @@ class ClaudeClient(private val store: SecureStore) {
         val body = JSONObject()
             .put("model", store.model)
             .put("max_tokens", MAX_TOKENS)
+            .put("output_config", JSONObject().put("effort", store.effort))
             .put("system", systemPrompt(lang))
             .put("messages", messages)
 
@@ -73,7 +74,11 @@ class ClaudeClient(private val store: SecureStore) {
     }
 
     private fun extractText(json: String): String {
-        val content = JSONObject(json).optJSONArray("content") ?: return ""
+        val root = JSONObject(json)
+        if (root.optString("stop_reason") == "refusal") {
+            throw ClaudeException("Request declined by safety filter")
+        }
+        val content = root.optJSONArray("content") ?: return ""
         val sb = StringBuilder()
         for (i in 0 until content.length()) {
             val block = content.getJSONObject(i)
@@ -94,6 +99,6 @@ class ClaudeClient(private val store: SecureStore) {
 
     companion object {
         private const val API_URL = "https://api.anthropic.com/v1/messages"
-        private const val MAX_TOKENS = 400
+        private const val MAX_TOKENS = 4096
     }
 }

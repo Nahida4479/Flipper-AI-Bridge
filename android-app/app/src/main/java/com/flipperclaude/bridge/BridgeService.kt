@@ -44,6 +44,7 @@ class BridgeService : Service() {
             return START_NOT_STICKY
         }
         startForegroundCompat()
+        TransportHub.service = this
         if (ble == null) {
             ble = BleTransport(this, ::onLine) { status ->
                 bleStatus = status
@@ -53,6 +54,8 @@ class BridgeService : Service() {
                 usbStatus = status
                 publishStatus()
             }
+            TransportHub.ble = ble
+            TransportHub.usb = usb
         }
         if (intent?.action == ACTION_RESTART_BLE) {
             ble?.start(store.bleAddress)
@@ -67,6 +70,9 @@ class BridgeService : Service() {
     }
 
     override fun onDestroy() {
+        TransportHub.ble = null
+        TransportHub.usb = null
+        TransportHub.service = null
         job?.cancel()
         ble?.stop()
         usb?.stop()
@@ -134,6 +140,7 @@ class BridgeService : Service() {
 
     private fun onLine(source: Transport, line: String) {
         when {
+            line == "@ready" || line == "P" -> source.send("H")
             line == "N" -> synchronized(history) { history.clear() }
             line.startsWith("U:") -> synchronized(history) {
                 history.add(ChatTurn("user", Protocol.unescape(line.substring(2))))

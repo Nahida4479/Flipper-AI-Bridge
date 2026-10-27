@@ -1,22 +1,96 @@
 # Flipper Claude Bridge
 
-Ask Claude from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth LE or USB, the phone asks the Claude API and sends the answer back to the Flipper screen.
+Ask Claude from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth Low Energy (BLE) or USB, the phone asks the Claude API and sends the answer back to the Flipper screen.
 
 Polish version: [README.pl.md](README.pl.md)
 
 ## Features
 
-- Chat with Claude on the Flipper screen: on-screen keyboard, chat strip above the input line, scrolling.
-- Bluetooth LE and USB. When the Flipper is plugged into the phone with USB, USB is used automatically, even if Bluetooth is also on. Without USB, Bluetooth is used.
-- Word and phrase hints while typing, in English and Polish (selectable: English, Polish or both).
-  - Built-in dictionaries (about 9000 words per language, 216 KB each) stored on the SD card.
-  - The app learns from what you send. A word is suggested from your own history first. A whole sentence is suggested only after you used it at least twice.
-  - Polish letters are matched exactly (`cz` suggests `cześć`, while `zolw` does not suggest `żółw`).
-  - Hold OK (or press the `Tab` key on the screen) to accept a hint.
+- Chat on the Flipper screen: on-screen keyboard, chat strip above the input line, scrolling.
+- Bluetooth Low Energy and USB. When the Flipper is plugged into the phone with USB, USB is used automatically, even if Bluetooth is also on.
+- The Chat and New chat menu entries are greyed out until the Flipper detects the phone app. The menu shows `Phone app not detected` at the bottom.
+- Word and phrase hints while typing, in English and Polish (English, Polish or both). They learn from what you write. Hold OK to accept a hint.
 - Two saved chats. Starting a new chat when both slots are used replaces the oldest one. Each chat is limited to 500 KB.
-- The phone app keeps the API key encrypted with the Android Keystore (AES-256-GCM).
-- The phone service runs with the screen off, uses no wake locks, no polling and no continuous scanning, so battery use is minimal.
-- Claude is asked for very short plain-text answers. It answers in Polish or English (the language you write in) and in English for any other language.
+- Android app: API key stored encrypted (Android Keystore, AES-256-GCM) and shown as dots, model picker (Sonnet 5.5, Haiku 5.5, Opus 5.5), effort picker (low, medium, high), runs with the screen off without wake locks or polling.
+- In-app updates for the phone app with SHA-256 verification, and one-tap `Install on Flipper` / `Update on Flipper` for the Flipper app. Chats, settings and the API key are kept.
+
+## How it works
+
+```mermaid
+flowchart LR
+    F["Flipper Zero<br/>Claude Bridge app"] <-->|"USB (priority)<br/>or BLE"| P["Android phone<br/>background service"]
+    P -->|HTTPS| A[("Claude API")]
+    A -->|answer| P
+```
+
+### Asking a question
+
+```mermaid
+flowchart TD
+    A([Type text on the Flipper]) --> B{Phone app<br/>detected?}
+    B -- no --> C["Chat and New chat greyed out<br/>'Phone app not detected'"]
+    B -- yes --> D[Press Send]
+    D --> E{USB cable<br/>connected to phone?}
+    E -- yes --> F[Send over USB]
+    E -- no --> G[Send over Bluetooth LE]
+    F --> H[Phone: Claude API request<br/>with chat history]
+    G --> H
+    H --> I{Answer ok?}
+    I -- yes --> J["Answer sent in short chunks<br/>and shown on the Flipper"]
+    I -- no --> K["Error shown on the Flipper"]
+    J --> L[(Chat saved on the SD card)]
+```
+
+### Detecting the phone app
+
+```mermaid
+sequenceDiagram
+    participant F as Flipper app
+    participant P as Phone service
+    F->>F: start BLE serial + USB CDC (background)
+    P->>F: connect (BLE) or open port (USB)
+    P->>F: H (hello)
+    F->>P: P (ping, repeated until H arrives)
+    P->>F: H
+    Note over F: Phone detected, menu entries enabled
+```
+
+### Word and phrase hints
+
+```mermaid
+flowchart TD
+    A[Key pressed] --> B{Whole text matches the start<br/>of a sentence used 2+ times?}
+    B -- yes --> C[Suggest the rest of the sentence]
+    B -- no --> D{Last word, 2+ letters,<br/>learned 2+ times?}
+    D -- yes --> E[Suggest your own word]
+    D -- no --> F[Search the dictionary<br/>English / Polish / both]
+    F --> G{Found?}
+    G -- yes --> H[Suggest the most frequent word]
+    G -- no --> I[No hint]
+    C --> J[Hold OK or Tab to accept]
+    E --> J
+    H --> J
+    J --> K[Sending a message teaches<br/>words and repeated sentences]
+```
+
+### Installing and updating the Flipper app from the phone
+
+```mermaid
+flowchart TD
+    A([Install on Flipper]) --> B[Download latest release]
+    B --> C{SHA-256 matches the API digest<br/>and SHA256SUMS?}
+    C -- no --> X([Stop: nothing is changed])
+    C -- yes --> D[Open Flipper RPC over USB or BLE]
+    D --> E{Flipper answers?}
+    E -- no --> Y([Close Claude Bridge on the Flipper, retry])
+    E -- yes --> F{claude_bridge.fap<br/>already on the SD card?}
+    F -- yes --> G[Upload next to it as .new]
+    F -- no --> H[Create /ext/apps/Tools] --> G
+    G --> I{MD5 of the upload<br/>matches?}
+    I -- no --> Z([Delete .new, nothing changed])
+    I -- yes --> J[Delete old app, rename .new]
+    J --> K([Done: chats and settings untouched])
+```
 
 ## Repository layout
 
@@ -24,32 +98,22 @@ Polish version: [README.pl.md](README.pl.md)
 | --- | --- |
 | `flipper-app/` | Flipper Zero app (C, `ufbt`) |
 | `android-app/` | Android app (Kotlin, Jetpack Compose) |
-| `release/` | Prebuilt `claude_bridge.fap` (dictionaries included) |
-| `tools/make_dict.py` | Generates the dictionary files |
-| `.github/workflows/` | GitHub Actions that build the APK and the `.fap` |
+| `release/` | Prebuilt `claude_bridge.fap` |
+| `tools/` | Dictionary generator and signing key helper |
+| `.github/workflows/` | CI that builds the APK and the `.fap`, and publishes releases |
 
-Branches: `main` is the stable first version, `beta` receives new changes for testing.
+Branches: `main` is stable, `beta` receives new changes for testing.
 
 ## Install
 
-### Flipper
-
-1. Copy the single file `claude_bridge.fap` to `SD:/apps/Tools/`.
-2. Open `Apps -> Tools -> Claude Bridge`. On the first start the app unpacks the dictionaries that are bundled inside the `.fap` to `SD:/apps_data/claude_bridge/dict/`.
-
-Or build it yourself: `cd flipper-app && ufbt` (or `ufbt launch` with the Flipper connected).
-
-### Android
-
-Download the APK from the GitHub Actions run of the `Build Android APK` workflow (artifact `flipper-claude-bridge-apk`) and install it. To build locally: install JDK 17 and the Android SDK, then run `gradle :app:assembleDebug` in `android-app/`.
-
-## Use
-
-1. On the phone: open the app, grant permissions, enter your Claude API key and press `Save key`, then press `Start`.
-2. On the Flipper: open Claude Bridge.
-3. Bluetooth: on the phone press `Scan for Flipper` and pick your Flipper (already paired devices are listed too; a Flipper that is already connected to the phone does not advertise, so it only shows up in the paired list). Accept the pairing request (the Flipper shows a PIN). The connection is restored automatically later.
-4. USB: plug the Flipper into the phone with a USB-C cable (OTG). Accept the USB permission once and choose "always". USB is then used automatically.
-5. On the Flipper choose `Chat` and type.
+1. Download `flipper-claude-bridge.apk` from the [Releases](../../releases) page and install it on the phone. Allow installing from this source if asked.
+2. Open the phone app, grant the permissions, enter your Claude API key, press `Start`.
+3. Put the Flipper app on the Flipper, either:
+   - in the phone app press `Install on Flipper` (Flipper connected over USB or Bluetooth, Claude Bridge not running on the Flipper), or
+   - copy `claude_bridge.fap` to `SD:/apps/<folder>/` with qFlipper or lab.flipper.net. The dictionaries are bundled inside the `.fap` and unpacked by the Flipper at the first start.
+4. Bluetooth: in the phone app press `Scan for Flipper` and pick your Flipper (paired devices are listed too). A Flipper already connected to the phone does not advertise, so it only shows up in the paired list. Accept the pairing PIN.
+5. USB: plug the Flipper into the phone (OTG). Accept the USB permission once.
+6. On the Flipper open the app and choose `Chat`.
 
 ### Flipper controls
 
@@ -61,42 +125,56 @@ Download the APK from the GitHub Actions run of the `Build Android APK` workflow
 | Back | Delete a character. When the input is empty: back to the menu |
 | Hold Back | Back to the menu |
 
-The bottom keyboard row: layer (`abc` / `ABC` one letter / `PL1` Polish letters, digits, symbols), `Del`, `Space`, `Tab` (accept hint), `Send`.
-
-Polish letters are typed on the `PL1` layer. The Flipper screen font has no Polish letters, so they are displayed without accents on the Flipper, but the text sent to Claude keeps them.
+Bottom keyboard row: layer (`abc`, `ABC` for one letter, `PL1` for Polish letters, digits and symbols), `Del`, `Space`, `Tab` (accept hint), `Send`. The Flipper font has no Polish letters, so they are shown without accents on the screen, but the text sent to Claude keeps them.
 
 ### Language
 
-The official Flipper firmware has no interface language setting that apps can read, so the hint language is set in the app (`Settings -> Hints language`: English, Polish, Both). The default is English. The interface of the app is in English.
+The official Flipper firmware has no interface language setting that apps can read, so the hint language is set in the app (`Settings -> Hints language`). The default is English. The app interface is in English. Claude answers in Polish or English (the language you write in) and in English for any other language.
 
-## How it works
+## Updates and checksums
 
-```
-Flipper app  <-- BLE serial / USB CDC -->  Android service  --HTTPS-->  Claude API
-```
+The phone app asks GitHub for the newest release when it opens (and on `Check for updates`). A new version is only offered when its version number is higher than the installed one. Beta releases are included only if you switch that on.
 
-Both links carry the same line protocol (UTF-8, one message per line, `\n` escaped as `\\n`):
+Before anything is installed, the file is downloaded and its SHA-256 is compared with the digest GitHub reports for that asset and with the `SHA256SUMS` file of the release. If either is missing, or they disagree, or the hash does not match, nothing is installed. The Flipper app upload is also verified with an MD5 check on the Flipper.
+
+This protects against corrupted or swapped files. It cannot protect against someone who controls this repository, so keep the repository and its secrets safe. Android additionally refuses an APK signed with a different key than the installed app.
+
+### Signing key (needed for in-app updates)
+
+Android installs an update only if it is signed with the same key as the installed app. The release workflow therefore needs a permanent key:
+
+1. Run `tools/make_keystore.sh` once (needs `keytool`, part of any JDK).
+2. Add the four secrets it prints to the repository (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`).
+3. Keep the `.jks` file safe. Losing it means users must uninstall once to update.
+
+Without the secrets the APK is signed with a temporary key and can only be installed fresh.
+
+## Protocol
+
+Both links carry one UTF-8 message per line (`\n` inside text is written as `\\n`):
 
 | Direction | Line | Meaning |
 | --- | --- | --- |
+| Phone to Flipper | `H` | Hello, the phone app is here |
+| Flipper to phone | `P` | Ping, answered with `H` |
 | Flipper to phone | `N` | New conversation |
 | Flipper to phone | `U:<text>` / `B:<text>` | Earlier user / Claude message (context replay when a saved chat is resumed) |
-| Flipper to phone | `Q:<lang>:<text>` (`lang` is `en`, `pl` or `both`) | Question |
+| Flipper to phone | `Q:<lang>:<text>` | Question (`lang` is `en`, `pl` or `both`) |
 | Phone to Flipper | `S:<text>` | Status |
 | Phone to Flipper | `A:<chunk>` | Part of the answer |
 | Phone to Flipper | `E` | End of the answer |
 | Phone to Flipper | `X:<text>` | Error |
 
-The Flipper selects USB when the phone has opened the USB port, otherwise Bluetooth.
+Installing the Flipper app uses the Flipper's own protobuf RPC (storage service) instead of this protocol.
 
 ## Security
 
-- The API key is stored encrypted with a non-exportable Android Keystore key. Backups are disabled.
-- The key is only sent to `https://api.anthropic.com`.
-- Chat history on the Flipper is stored on the SD card as plain text, like everything else on it.
-- The Bluetooth link uses the Flipper pairing with a PIN.
+- The API key is stored encrypted with a non-exportable Android Keystore key, shown only as dots, and sent only to `https://api.anthropic.com`. Backups are disabled.
+- Chat history on the Flipper is stored on the SD card as plain text.
+- The Bluetooth link uses Flipper pairing with a PIN.
 
 ## Notes
 
-- The Flipper app and the Android app were written without access to the hardware in the build environment, so test them on your devices and report problems.
+- The apps were written without access to the hardware, so test them on your devices and report problems.
 - The Flipper UI layout (128x64 px) may need small adjustments after the first real test.
+- Naming: the project name currently contains "Claude". Anthropic owns that trademark, so the name may change.

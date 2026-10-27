@@ -24,9 +24,27 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing key secrets set. The APK is signed with a temporary key and cannot be installed over a previous version."
+          fi
       - name: Build APK
         working-directory: android-app
-        run: gradle :app:assembleDebug --stacktrace
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: gradle :app:assembleDebug --stacktrace -PappVersion="${TAG#v}" -PappVersionCode="${{ github.run_number }}"
       - name: Collect
         run: |
           mkdir out
@@ -50,7 +68,6 @@ jobs:
           mkdir -p out
           FAP=$(find . -name claude_bridge.fap -not -path "./release/*" | head -n 1)
           cp "$FAP" out/claude_bridge.fap
-          python3 tools/pack_fap.py out/claude_bridge.fap flipper-app/assets/dict/en.dict flipper-app/assets/dict/pl.dict
       - uses: actions/upload-artifact@v4
         with:
           name: fap
@@ -64,6 +81,9 @@ jobs:
         with:
           path: assets
           merge-multiple: true
+      - name: Create checksums
+        working-directory: assets
+        run: sha256sum flipper-claude-bridge.apk claude_bridge.fap > SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}

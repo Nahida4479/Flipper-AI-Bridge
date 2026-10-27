@@ -84,5 +84,8 @@ class LineAssembler(private val onLine: (String) -> Unit) {
 
 interface Transport {
     val label: String
+    var rawSink: ((ByteArray) -> Unit)?
     fun send(line: String)
+    fun sendRaw(data: ByteArray)
+    val connected: Boolean
 }

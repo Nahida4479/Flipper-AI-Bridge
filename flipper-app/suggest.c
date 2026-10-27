@@ -3,7 +3,7 @@
 #include "paths.h"
 #include <string.h>
 
-#define DICT_RECORD 24
+#define DICT_RECORD 20
 
 typedef struct {
     char text[SUGGEST_WORD_LEN];
@@ -47,11 +47,8 @@ static bool is_word_char(uint32_t cp) {
 }
 
 static void dict_path_in(Storage* storage, SuggestLang lang, char* out, size_t cap) {
-    const char* name = lang == SuggestLangPl ? "pl" : "en";
-    snprintf(out, cap, "%s/%s.dict", DICT_DATA_DIR, name);
-    if(!storage_file_exists(storage, out)) {
-        snprintf(out, cap, "%s/dict/%s.dict", APP_ASSETS_DIR, name);
-    }
+    UNUSED(storage);
+    snprintf(out, cap, "%s/dict/%s.dict", APP_ASSETS_DIR, lang == SuggestLangPl ? "pl" : "en");
 }
 
 static bool dict_lookup(

@@ -24,6 +24,8 @@ class BleTransport(
 ) : Transport {
 
     override val label = "Bluetooth"
+    @Volatile override var rawSink: ((ByteArray) -> Unit)? = null
+    override val connected: Boolean get() = ready
 
     private val handler = Handler(Looper.getMainLooper())
     private val assembler = LineAssembler { onLine(this, it) }
@@ -144,6 +146,7 @@ class BleTransport(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 ready = true
                 onStatus("Connected")
+                onLine(this@BleTransport, "@ready")
             } else {
                 onStatus("Pairing failed ($status)")
             }
@@ -152,7 +155,7 @@ class BleTransport(
         @Deprecated("Deprecated in API 33")
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic) {
             @Suppress("DEPRECATION")
-            c.value?.let { assembler.feed(it) }
+            c.value?.let { dispatch(it) }
         }
 
         override fun onCharacteristicChanged(
@@ -160,13 +163,18 @@ class BleTransport(
             c: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            assembler.feed(value)
+            dispatch(value)
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
             writing = false
             pump()
         }
+    }
+
+    private fun dispatch(value: ByteArray) {
+        val sink = rawSink
+        if (sink != null) sink(value) else assembler.feed(value)
     }
 
     @Synchronized
@@ -193,9 +201,10 @@ class BleTransport(
         }
     }
 
-    override fun send(line: String) {
+    override fun send(line: String) = sendRaw((line + "\n").toByteArray(Charsets.UTF_8))
+
+    override fun sendRaw(data: ByteArray) {
         if (!ready) return
-        val data = (line + "\n").toByteArray(Charsets.UTF_8)
         val size = (mtu - 3).coerceAtLeast(20)
         var off = 0
         while (off < data.size) {
