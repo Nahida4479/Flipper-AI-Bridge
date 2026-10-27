@@ -112,6 +112,10 @@ static void bt_status(BtStatus status, void* context) {
     Link* link = context;
     link->ble_connected = status == BtStatusConnected;
     if(!link->ble_connected) link->ble_ready = false;
+    if(link->ble_connected && link->profile) {
+        ble_profile_serial_set_event_callback(link->profile, BLE_RX_BUFFER, ble_event, link);
+        ble_profile_serial_set_rpc_active(link->profile, FuriHalBtSerialRpcStatusNotActive);
+    }
     notify(link);
 }
 

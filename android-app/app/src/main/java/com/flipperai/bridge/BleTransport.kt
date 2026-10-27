@@ -183,6 +183,7 @@ class BleTransport(
                 ready = true
                 onStatus("Connected")
                 val sc = statusChar
+                statusReads = 0
                 if (sc != null) g.readCharacteristic(sc) else onRpcStatus(null)
             } else {
                 onStatus("Pairing failed ($status)")
@@ -235,9 +236,21 @@ class BleTransport(
         }
     }
 
+    private var statusReads = 0
+
     private fun onRpcStatus(active: Boolean?) {
         rpcActive = active
-        if (active == false) onLine(this, "@app")
+        if (active == false) {
+            statusReads = 0
+            onLine(this, "@app")
+        } else if (active == true && statusReads < 6 && ready) {
+            statusReads++
+            handler.postDelayed({
+                val g = gatt
+                val sc = statusChar
+                if (ready && g != null && sc != null) g.readCharacteristic(sc)
+            }, 1500)
+        }
     }
 
     private fun dispatch(value: ByteArray) {
