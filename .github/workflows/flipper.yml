@@ -24,14 +24,15 @@ jobs:
           app-dir: flipper-app
           sdk-channel: release
 
-      - name: Prepare SD card layout
+      - name: Pack dictionaries into the .fap
         run: |
-          mkdir -p sdcard/apps/Tools sdcard/apps_assets/claude_bridge
-          cp "${{ steps.build.outputs.fap-artifacts }}"/*.fap sdcard/apps/Tools/ 2>/dev/null || cp flipper-app/dist/*.fap sdcard/apps/Tools/
-          cp -r flipper-app/assets/dict sdcard/apps_assets/claude_bridge/
+          mkdir -p out
+          FAP=$(find . -name claude_bridge.fap | head -n 1)
+          cp "$FAP" out/claude_bridge.fap
+          python3 tools/pack_fap.py out/claude_bridge.fap flipper-app/assets/dict/en.dict flipper-app/assets/dict/pl.dict
 
       - uses: actions/upload-artifact@v4
         with:
-          name: flipper-claude-bridge-sdcard
-          path: sdcard
+          name: claude_bridge-fap
+          path: out/claude_bridge.fap
           if-no-files-found: error

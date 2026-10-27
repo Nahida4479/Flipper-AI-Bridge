@@ -46,8 +46,12 @@ static bool is_word_char(uint32_t cp) {
     return cp >= 0x80 && cp_fold_char(cp) != 0;
 }
 
-static void dict_path(SuggestLang lang, char* out, size_t cap) {
-    snprintf(out, cap, "%s/dict/%s.dict", APP_ASSETS_DIR, lang == SuggestLangPl ? "pl" : "en");
+static void dict_path_in(Storage* storage, SuggestLang lang, char* out, size_t cap) {
+    const char* name = lang == SuggestLangPl ? "pl" : "en";
+    snprintf(out, cap, "%s/%s.dict", DICT_DATA_DIR, name);
+    if(!storage_file_exists(storage, out)) {
+        snprintf(out, cap, "%s/dict/%s.dict", APP_ASSETS_DIR, name);
+    }
 }
 
 static bool dict_lookup(
@@ -57,7 +61,7 @@ static bool dict_lookup(
     char* out,
     size_t out_cap) {
     char path[96];
-    dict_path(lang, path, sizeof(path));
+    dict_path_in(s->storage, lang, path, sizeof(path));
     File* file = storage_file_alloc(s->storage);
     bool found = false;
     if(storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
@@ -155,7 +159,7 @@ void suggest_set_lang(Suggest* s, SuggestLang lang) {
 
 bool suggest_dict_available(Suggest* s) {
     char path[96];
-    dict_path(SuggestLangEn, path, sizeof(path));
+    dict_path_in(s->storage, SuggestLangEn, path, sizeof(path));
     return storage_file_exists(s->storage, path);
 }
 

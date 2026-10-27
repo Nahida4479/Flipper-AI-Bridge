@@ -47,12 +47,10 @@ jobs:
           sdk-channel: release
       - name: Collect
         run: |
-          mkdir -p out sdcard/apps/Tools sdcard/apps_assets/claude_bridge
+          mkdir -p out
           FAP=$(find . -name claude_bridge.fap -not -path "./release/*" | head -n 1)
           cp "$FAP" out/claude_bridge.fap
-          cp "$FAP" sdcard/apps/Tools/
-          cp -r flipper-app/assets/dict sdcard/apps_assets/claude_bridge/
-          (cd sdcard && zip -r ../out/flipper-sdcard-files.zip .)
+          python3 tools/pack_fap.py out/claude_bridge.fap flipper-app/assets/dict/en.dict flipper-app/assets/dict/pl.dict
       - uses: actions/upload-artifact@v4
         with:
           name: fap
@@ -70,5 +68,6 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: ${{ github.event.inputs.tag || github.ref_name }}
+          prerelease: ${{ github.ref_name == 'beta' }}
           generate_release_notes: true
           files: assets/*

@@ -93,8 +93,12 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun startScan() {
         val adapter = BleTransport.adapter(this)
-        val scanner = adapter?.bluetoothLeScanner ?: return
+        if (adapter == null) return
+        val scanner = adapter.bluetoothLeScanner ?: return
         found.clear()
+        adapter.bondedDevices?.forEach { d ->
+            found.add((d.name ?: "Unnamed") + " (paired)" to d.address)
+        }
         scanning = true
         scanner.startScan(scanCallback)
         handler.postDelayed({ stopScan() }, 10000)
@@ -247,7 +251,7 @@ class MainActivity : ComponentActivity() {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Flipper (Bluetooth)", style = MaterialTheme.typography.titleMedium)
                         Text(if (bleName.isEmpty()) "No Flipper selected" else "Selected: $bleName")
-                        Text("Start the Claude Bridge app on the Flipper first, then scan.")
+                        Text("Paired devices are listed too. Pick your Flipper from the list. Start the Claude Bridge app on the Flipper first.")
                         Button(
                             enabled = permsOk && !scanning,
                             onClick = { startScan() }

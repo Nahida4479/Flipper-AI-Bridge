@@ -24,7 +24,7 @@ English version: [README.md](README.md)
 | --- | --- |
 | `flipper-app/` | Aplikacja na Flippera Zero (C, `ufbt`) |
 | `android-app/` | Aplikacja na Androida (Kotlin, Jetpack Compose) |
-| `release/` | Gotowy `claude_bridge.fap` i pliki słowników |
+| `release/` | Gotowy `claude_bridge.fap` (ze słownikami w środku) |
 | `tools/make_dict.py` | Generator słowników |
 | `.github/workflows/` | GitHub Actions budujące APK i `.fap` |
 
@@ -34,9 +34,8 @@ Gałęzie: `main` to stabilna pierwsza wersja, `beta` dostaje nowe zmiany do tes
 
 ### Flipper
 
-1. Skopiuj `release/claude_bridge.fap` do `SD:/apps/Tools/`.
-2. Skopiuj folder `release/apps_assets/claude_bridge/` do `SD:/apps_assets/claude_bridge/` (musi zawierać `dict/en.dict` i `dict/pl.dict`).
-3. Uruchom `Apps -> Tools -> Claude Bridge`.
+1. Skopiuj jeden plik `claude_bridge.fap` do `SD:/apps/Tools/`.
+2. Uruchom `Apps -> Tools -> Claude Bridge`. Przy pierwszym starcie aplikacja sama rozpakuje słowniki zapisane w pliku `.fap` do `SD:/apps_data/claude_bridge/dict/`.
 
 Albo zbuduj samodzielnie: `cd flipper-app && ufbt` (lub `ufbt launch` przy podłączonym Flipperze).
 
@@ -48,7 +47,7 @@ Pobierz APK z uruchomienia workflow `Build Android APK` w GitHub Actions (artefa
 
 1. W telefonie: otwórz aplikację, nadaj uprawnienia, wpisz klucz API Claude'a i naciśnij `Save key`, potem `Start`.
 2. Na Flipperze: uruchom Claude Bridge.
-3. Bluetooth: w telefonie naciśnij `Scan for Flipper` i wybierz swojego Flippera. Zaakceptuj parowanie (Flipper pokaże PIN). Później połączenie wraca samo.
+3. Bluetooth: w telefonie naciśnij `Scan for Flipper` i wybierz swojego Flippera (lista zawiera też sparowane urządzenia; Flipper już połączony z telefonem się nie reklamuje, więc widać go tylko na liście sparowanych). Zaakceptuj parowanie (Flipper pokaże PIN). Później połączenie wraca samo.
 4. USB: podłącz Flippera do telefonu kablem USB-C (OTG). Zaakceptuj uprawnienie USB i wybierz "zawsze". Potem USB jest używane automatycznie.
 5. Na Flipperze wybierz `Chat` i pisz.
 

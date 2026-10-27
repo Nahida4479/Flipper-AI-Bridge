@@ -4,6 +4,7 @@
 
 #define APP_ASSETS_DIR "/ext/apps_assets/claude_bridge"
 #define APP_DATA_DIR   "/ext/apps_data/claude_bridge"
+#define DICT_DATA_DIR  APP_DATA_DIR "/dict"
 #define LEARNED_PATH   APP_DATA_DIR "/learned.txt"
 #define SETTINGS_PATH  APP_DATA_DIR "/settings.txt"
 #define META_PATH      APP_DATA_DIR "/chats.txt"
