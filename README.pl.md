@@ -85,8 +85,3 @@ Flipper wybiera USB, gdy telefon otworzył port USB, w przeciwnym razie Bluetoot
 - Klucz jest wysyłany tylko do `https://api.anthropic.com`.
 - Historia czatu na Flipperze leży na karcie SD jako zwykły tekst, jak wszystko inne na niej.
 - Łącze Bluetooth używa parowania Flippera z kodem PIN.
-
-## Uwagi
-
-- Obie aplikacje powstały bez dostępu do sprzętu w środowisku budowania, więc przetestuj je na swoich urządzeniach i zgłoś problemy.
-- Układ interfejsu Flippera (128x64 px) może wymagać drobnych poprawek po pierwszym teście na urządzeniu.
