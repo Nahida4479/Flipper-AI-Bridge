@@ -1,6 +1,6 @@
 # Flipper AI Bridge
 
-Zadawaj pytania AI z Flippera Zero. Flipper nie ma Wi-Fi, więc pośrednikiem jest telefon z Androidem: Flipper wysyła pytanie przez Bluetooth Low Energy (BLE) lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
+Zadawaj pytania AI z Flippera Zero. Flipper nie ma Wi-Fi, więc pośrednikiem jest telefon z Androidem: Flipper wysyła pytanie przez Bluetooth Low Energy lub USB, telefon pyta API Anthropic (modele Claude) i odsyła odpowiedź na ekran Flippera.
 
 English version: [README.md](README.md)
 
@@ -18,78 +18,9 @@ English version: [README.md](README.md)
 
 ```mermaid
 flowchart LR
-    F["Flipper Zero<br/>aplikacja AI Bridge"] <-->|"USB (priorytet)<br/>albo BLE"| P["Telefon z Androidem<br/>usługa w tle"]
+    F["Flipper AI Bridge (Flipper)"] <-->|"USB (priorytet)<br/>albo Bluetooth Low Energy"| P["Android backend system"]
     P -->|HTTPS| A[("API Anthropic")]
     A -->|odpowiedź| P
-```
-
-### Zadawanie pytania
-
-```mermaid
-flowchart TD
-    A([Wpisz tekst na Flipperze]) --> B{Wykryto aplikację<br/>w telefonie?}
-    B -- nie --> C["Chat i New chat wyszarzone<br/>'Phone app not detected'"]
-    B -- tak --> D[Naciśnij Send]
-    D --> E{Kabel USB<br/>podłączony do telefonu?}
-    E -- tak --> F[Wysyłanie przez USB]
-    E -- nie --> G[Wysyłanie przez Bluetooth LE]
-    F --> H[Telefon: zapytanie do API Anthropic<br/>z historią czatu]
-    G --> H
-    H --> I{Odpowiedź ok?}
-    I -- tak --> J["Odpowiedź w krótkich kawałkach<br/>na ekranie Flippera"]
-    I -- nie --> K["Błąd na ekranie Flippera"]
-    J --> L[(Czat zapisany na karcie SD)]
-```
-
-### Wykrywanie aplikacji w telefonie
-
-```mermaid
-sequenceDiagram
-    participant F as Aplikacja Flipper
-    participant P as Usługa w telefonie
-    F->>F: start BLE serial + USB CDC (w tle)
-    P->>F: połączenie (BLE) lub otwarcie portu (USB)
-    P->>F: H (hello)
-    F->>P: P (ping, powtarzany do odebrania H)
-    P->>F: H
-    Note over F: Telefon wykryty, pozycje menu włączone
-```
-
-### Podpowiedzi słów i zdań
-
-```mermaid
-flowchart TD
-    A[Naciśnięty klawisz] --> B{Cały tekst pasuje do początku<br/>zdania użytego 2+ razy?}
-    B -- tak --> C[Podpowiedz resztę zdania]
-    B -- nie --> D{Ostatnie słowo, 2+ litery,<br/>wpisane 2+ razy?}
-    D -- tak --> E[Podpowiedz własne słowo]
-    D -- nie --> F[Szukaj w słowniku<br/>angielski / polski / oba]
-    F --> G{Znaleziono?}
-    G -- tak --> H[Podpowiedz najczęstsze słowo]
-    G -- nie --> I[Brak podpowiedzi]
-    C --> J[Przytrzymaj OK albo Tab, aby przyjąć]
-    E --> J
-    H --> J
-    J --> K[Wysłanie wiadomości uczy<br/>słów i powtarzanych zdań]
-```
-
-### Instalacja i aktualizacja aplikacji Flippera z telefonu
-
-```mermaid
-flowchart TD
-    A([Install on Flipper]) --> B[Pobierz najnowsze wydanie]
-    B --> C{SHA-256 zgodne z digestem API<br/>i plikiem SHA256SUMS?}
-    C -- nie --> X([Stop: nic nie zmieniono])
-    C -- tak --> D[Otwórz RPC Flippera przez USB lub BLE]
-    D --> E{Flipper odpowiada?}
-    E -- nie --> Y([Zamknij AI Bridge na Flipperze i spróbuj ponownie])
-    E -- tak --> F{ai_bridge.fap<br/>już jest na karcie SD?}
-    F -- tak --> G[Wgraj obok jako .new]
-    F -- nie --> H[Utwórz /ext/apps/Tools] --> G
-    G --> I{MD5 wgranego pliku<br/>zgodne?}
-    I -- nie --> Z([Usuń .new, nic nie zmieniono])
-    I -- tak --> J[Usuń starą aplikację, zmień nazwę .new]
-    J --> K([Gotowe: czaty i ustawienia nietknięte])
 ```
 
 ## Struktura repozytorium

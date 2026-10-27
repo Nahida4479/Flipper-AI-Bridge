@@ -1,6 +1,6 @@
 # Flipper AI Bridge
 
-Ask an AI from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth Low Energy (BLE) or USB, the phone asks the Anthropic API (Claude models) and sends the answer back to the Flipper screen.
+Ask an AI from a Flipper Zero. The Flipper has no Wi-Fi, so an Android phone acts as the bridge: the Flipper sends the question over Bluetooth Low Energy or USB, the phone asks the Anthropic API (Claude models) and sends the answer back to the Flipper screen.
 
 Polish version: [README.pl.md](README.pl.md)
 
@@ -18,78 +18,9 @@ Polish version: [README.pl.md](README.pl.md)
 
 ```mermaid
 flowchart LR
-    F["Flipper Zero<br/>AI Bridge app"] <-->|"USB (priority)<br/>or BLE"| P["Android phone<br/>background service"]
+    F["Flipper AI Bridge (Flipper)"] <-->|"USB (priority)<br/>or Bluetooth Low Energy"| P["Android backend system"]
     P -->|HTTPS| A[("Anthropic API")]
     A -->|answer| P
-```
-
-### Asking a question
-
-```mermaid
-flowchart TD
-    A([Type text on the Flipper]) --> B{Phone app<br/>detected?}
-    B -- no --> C["Chat and New chat greyed out<br/>'Phone app not detected'"]
-    B -- yes --> D[Press Send]
-    D --> E{USB cable<br/>connected to phone?}
-    E -- yes --> F[Send over USB]
-    E -- no --> G[Send over Bluetooth LE]
-    F --> H[Phone: Anthropic API request<br/>with chat history]
-    G --> H
-    H --> I{Answer ok?}
-    I -- yes --> J["Answer sent in short chunks<br/>and shown on the Flipper"]
-    I -- no --> K["Error shown on the Flipper"]
-    J --> L[(Chat saved on the SD card)]
-```
-
-### Detecting the phone app
-
-```mermaid
-sequenceDiagram
-    participant F as Flipper app
-    participant P as Phone service
-    F->>F: start BLE serial + USB CDC (background)
-    P->>F: connect (BLE) or open port (USB)
-    P->>F: H (hello)
-    F->>P: P (ping, repeated until H arrives)
-    P->>F: H
-    Note over F: Phone detected, menu entries enabled
-```
-
-### Word and phrase hints
-
-```mermaid
-flowchart TD
-    A[Key pressed] --> B{Whole text matches the start<br/>of a sentence used 2+ times?}
-    B -- yes --> C[Suggest the rest of the sentence]
-    B -- no --> D{Last word, 2+ letters,<br/>learned 2+ times?}
-    D -- yes --> E[Suggest your own word]
-    D -- no --> F[Search the dictionary<br/>English / Polish / both]
-    F --> G{Found?}
-    G -- yes --> H[Suggest the most frequent word]
-    G -- no --> I[No hint]
-    C --> J[Hold OK or Tab to accept]
-    E --> J
-    H --> J
-    J --> K[Sending a message teaches<br/>words and repeated sentences]
-```
-
-### Installing and updating the Flipper app from the phone
-
-```mermaid
-flowchart TD
-    A([Install on Flipper]) --> B[Download latest release]
-    B --> C{SHA-256 matches the API digest<br/>and SHA256SUMS?}
-    C -- no --> X([Stop: nothing is changed])
-    C -- yes --> D[Open Flipper RPC over USB or BLE]
-    D --> E{Flipper answers?}
-    E -- no --> Y([Close AI Bridge on the Flipper, retry])
-    E -- yes --> F{ai_bridge.fap<br/>already on the SD card?}
-    F -- yes --> G[Upload next to it as .new]
-    F -- no --> H[Create /ext/apps/Tools] --> G
-    G --> I{MD5 of the upload<br/>matches?}
-    I -- no --> Z([Delete .new, nothing changed])
-    I -- yes --> J[Delete old app, rename .new]
-    J --> K([Done: chats and settings untouched])
 ```
 
 ## Repository layout
